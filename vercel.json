@@ -1,0 +1,1 @@
+{"version":2,"crons":[{"path":"/api/cron","schedule":"30 3 * * 1"}],"rewrites":[{"source":"/((?!api/|sw\\.js|assets/).*)","destination":"/index.html"}]}
