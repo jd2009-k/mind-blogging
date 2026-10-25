@@ -39,9 +39,53 @@ async function request(method:string,path:string,body:any={}):Promise<{data:any}
 }
 async function authenticatedFetch(path:string,method:string,body?:any){const token=await auth.getAccessToken();if(!token)fail('Please sign in.',401);const r=await fetch(path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok)fail(j.error||'Request failed',r.status);return j;}
 export const api={get:(path:string)=>request('GET',path),post:(path:string,body?:any)=>request('POST',path,body),put:(path:string,body?:any)=>request('PUT',path,body),delete:(path:string)=>request('DELETE',path)};
+/** Email auth stays inside this origin. The origin must be on Supabase's Auth redirect allow-list. */
+const currentRedirect=()=>new URL('/',window.location.origin).toString();
+const mapUser=(user:any):AuthUser=>({userId:user.id,email:user.email,name:user.user_metadata?.name,scope:'user'});
 export const auth={
- getUser:async():Promise<AuthUser|null>=>{const {data}=await sb.auth.getUser();return data.user?{userId:data.user.id,email:data.user.email,name:data.user.user_metadata?.name,scope:'user'}:null;},
- signIn:async(email:string)=>{const {error}=await sb.auth.signInWithOtp({email:email.trim(),options:{emailRedirectTo:location.origin}});if(error)fail(error.message);return {user:null};},
+ getUser:async():Promise<AuthUser|null>=>{
+  const {data,error}=await sb.auth.getUser();
+  // No session on first visit is normal, but an existing session error must be visible.
+  if(error && error.name!=='AuthSessionMissingError')throw error;
+  return data.user?mapUser(data.user):null;
+ },
+ /** Email magic link: default Supabase email template sends a link, not a six-digit code. */
+ signIn:async(email:string)=>{
+  const {error}=await sb.auth.signInWithOtp({
+   email:email.trim(),
+   options:{emailRedirectTo:currentRedirect()}
+  });
+  if(error)fail(error.message,error.status||400);
+  return {sent:true};
+ },
+ /** Email+password avoids cross-device magic-link redirects for existing confirmed users. */
+ signInWithPassword:async(email:string,password:string)=>{
+  const {data,error}=await sb.auth.signInWithPassword({email:email.trim(),password});
+  if(error)fail(error.message,error.status||400);
+  if(!data.user||!data.session)fail('Sign-in did not create a session. Confirm your email first.');
+  return mapUser(data.user);
+ },
+ signUpWithPassword:async(email:string,password:string)=>{
+  const {data,error}=await sb.auth.signUp({
+   email:email.trim(),password,
+   options:{emailRedirectTo:currentRedirect()}
+  });
+  if(error)fail(error.message,error.status||400);
+  return {user:data.user&&data.session?mapUser(data.user):null,confirmationRequired:!data.session};
+ },
+ /** Only works if the Supabase email template supplies a visible OTP code. */
+ verifyEmailCode:async(email:string,token:string)=>{
+  const {data,error}=await sb.auth.verifyOtp({email:email.trim(),token:token.trim(),type:'email'});
+  if(error)fail(error.message,error.status||400);
+  if(!data.user||!data.session)fail('Code verification did not create a session.');
+  return mapUser(data.user);
+ },
+ onAuthStateChange:(callback:(event:string,user:AuthUser|null)=>void)=>{
+  const {data:{subscription}}=sb.auth.onAuthStateChange((event,session)=>{
+   callback(event,session?.user?mapUser(session.user):null);
+  });
+  return ()=>subscription.unsubscribe();
+ },
  signOut:async()=>{const {error}=await sb.auth.signOut();if(error)fail(error.message);},
  getAccessToken:async()=>{const {data}=await sb.auth.getSession();return data.session?.access_token||null}
 };
