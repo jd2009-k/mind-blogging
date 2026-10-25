@@ -30,11 +30,13 @@ async function request(method:string,path:string,body:any={}):Promise<{data:any}
  }
  if(route==='account'&&parts[2]==='erase'&&method==='POST'){
   if(body.confirmation!=='DELETE MY DATA')fail('Confirmation required.',422);
+  // Stop server-side push delivery before removing preferences, or abort erasure.
+  await authenticatedFetch('/api/push?mode=unsubscribe','DELETE');
   for(const kind of ['entries','artifacts','goals','reviews','settings'] as Kind[])for(const row of await read(kind))await remove(kind,row.id);
   return success({complete:true});
  }
  if(route==='reminders'&&parts[2]==='test'&&method==='POST'){const r=await authenticatedFetch('/api/push?mode=test','POST',{});return success(r);}
- if(route==='suggest-tags'||route==='action'){fail('This AI-assisted action is not yet supported by this beta deployment.',501);}
+ if((route==='suggest-tags'||route==='action')&&method==='POST'){return success(await authenticatedFetch('/api/'+route,'POST',body));}
  fail('Unsupported request: '+method+' '+path,404);
 }
 async function authenticatedFetch(path:string,method:string,body?:any){const token=await auth.getAccessToken();if(!token)fail('Please sign in.',401);const r=await fetch(path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok)fail(j.error||'Request failed',r.status);return j;}
@@ -99,6 +101,6 @@ export const notifications={
   if(!subscription)subscription=await ready.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:fromBase64Url(keyData.key)});
   const prefs=await settings();await write('settings',{...prefs,weeklyReview:true,id:sid,version:(prefs.version||0)+1});
   return authenticatedFetch('/api/push?mode=subscribe','POST',{subscription:subscription.toJSON()});},
- unsubscribe:async(_options?:any)=>{const worker=await navigator.serviceWorker.getRegistration('/sw.js');const s=await worker?.pushManager.getSubscription();await authenticatedFetch('/api/push?mode=unsubscribe','DELETE',{}).catch(()=>{});
+ unsubscribe:async(_options?:any)=>{const worker=await navigator.serviceWorker.getRegistration('/sw.js');const s=await worker?.pushManager.getSubscription();await authenticatedFetch('/api/push?mode=unsubscribe','DELETE',{});
    if(s)await s.unsubscribe();}
 };

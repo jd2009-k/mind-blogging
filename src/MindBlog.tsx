@@ -173,6 +173,9 @@ function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [loginEmail,setLoginEmail]=useState('');
   const [loginSent,setLoginSent]=useState(false);
+  const [loginPassword,setLoginPassword]=useState('');
+  const [loginCode,setLoginCode]=useState('');
+  const [loginMode,setLoginMode]=useState<'password'|'register'|'link'>('password');
   const [notificationBusy,setNotificationBusy] = useState(false);
   const pendingCreateId = useRef('');
   const [serverConflict, setServerConflict] = useState<Entry | null>(null);
@@ -297,13 +300,16 @@ function App() {
     setErrorMessage(String(msg));
   };
   useEffect(() => {
-    auth
-      .getUser()
-      .then(me => {
-        setUser(me);
-        setAuthReady(true);
-      })
-      .catch(() => setAuthReady(true));
+    let active=true;
+    auth.getUser().then(me=>{if(active){setUser(me);setAuthReady(true);}})
+      .catch(e=>{if(active){setAuthReady(true);setErrorMessage(e?.message||'Unable to restore session.');}});
+    const unsubscribe=auth.onAuthStateChange((event,me)=>{
+      if(!active)return;
+      if(event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='INITIAL_SESSION'){
+        setUser(me);setAuthReady(true);
+      }
+    });
+    return ()=>{active=false;unsubscribe();};
   }, []);
   const load = async () => {
     setLoading(true);
@@ -374,9 +380,21 @@ function App() {
   const signIn = async () => {
     const email=loginEmail.trim();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){setErrorMessage('Enter a valid email address.');return;}
+    if(loginMode!=='link' && !loginPassword){setErrorMessage('Enter your password.');return;}
     setAuthBusy(true);setErrorMessage('');setLoginSent(false);
-    try{await auth.signIn(email);setLoginSent(true);}
-    catch(e){fail(e,'Unable to send a secure sign-in link.');}
+    try {
+      if(loginMode==='password')setUser(await auth.signInWithPassword(email,loginPassword));
+      else if(loginMode==='register'){
+        const result=await auth.signUpWithPassword(email,loginPassword);
+        if(result.user)setUser(result.user);else setLoginSent(true);
+      } else {await auth.signIn(email);setLoginSent(true);}
+    } catch(e){fail(e,'Sign-in failed.');}
+    finally{setAuthBusy(false);}
+  };
+  const verifyCode = async () => {
+    setAuthBusy(true);setErrorMessage('');
+    try{setUser(await auth.verifyEmailCode(loginEmail.trim(),loginCode.trim()));}
+    catch(e){fail(e,'Invalid or expired code.');}
     finally{setAuthBusy(false);}
   };
   const signOut = async () => {
@@ -960,17 +978,41 @@ function App() {
                 AI, only when you choose
               </span>
             </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+              {(['password','register','link'] as const).map(mode=>
+                <button key={mode} type="button" onClick={()=>{setLoginMode(mode);setLoginSent(false);setErrorMessage('');}}
+                  aria-pressed={loginMode===mode} style={{border:'1px solid #b5b1c7',borderRadius:8,padding:'9px 12px',
+                  background:loginMode===mode?'#29243f':'#fff',color:loginMode===mode?'#fff':'#29243f'}}>
+                  {mode==='password'?'Sign in':mode==='register'?'Create account':'Email link'}
+                </button>)}
+            </div>
             <form onSubmit={event=>{event.preventDefault();void signIn();}} style={{display:'flex',flexDirection:'column',gap:12,maxWidth:390}}>
               <label htmlFor="loginEmail">Your email address</label>
               <input id="loginEmail" type="email" required autoComplete="email" placeholder="you@example.com"
-                value={loginEmail} onChange={e=>{setLoginEmail(e.target.value);setLoginSent(false);}}
+                value={loginEmail} onChange={e=>setLoginEmail(e.target.value)}
                 style={{background:'white',color:'#172233',fontSize:16,padding:14,borderRadius:10,border:'1px solid #ddd'}}/>
+              {loginMode!=='link'&&<>
+                <label htmlFor="loginPassword">Password</label>
+                <input id="loginPassword" type="password" required minLength={6}
+                  autoComplete={loginMode==='register'?'new-password':'current-password'}
+                  value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}
+                  style={{background:'white',color:'#172233',fontSize:16,padding:14,borderRadius:10,border:'1px solid #ddd'}}/>
+              </>}
               <button type="submit" className="button white big" disabled={authBusy}>
-                {authBusy?'Sending secure link…':'Email me a sign-in link'} <ArrowUpRight size={18}/>
+                {authBusy?'Working…':loginMode==='link'?'Email me a sign-in link':loginMode==='register'?'Create account':'Sign in'} <ArrowUpRight size={18}/>
               </button>
             </form>
-            {loginSent && <div className="auth-help" role="status"><strong>Check your inbox for the sign-in link.</strong>
-              <p>Open your email in this same browser to complete sign-in.</p></div>}
+            {loginSent&&<div className="auth-help" role="status">
+              <strong>Check your inbox.</strong>
+              <p>{loginMode==='register'?'Confirm your email then use Sign in.':'Open the email link in the same browser. For local use, add your local URL to Supabase Auth redirects.'}</p>
+              {loginMode==='link'&&<form onSubmit={e=>{e.preventDefault();void verifyCode();}}>
+                <label htmlFor="loginCode">Verification code (only if emailed a code)</label>
+                <input id="loginCode" inputMode="numeric" autoComplete="one-time-code"
+                  value={loginCode} onChange={e=>setLoginCode(e.target.value)}
+                  style={{color:'#172233',padding:10}}/>
+                <button type="submit" disabled={authBusy}>Verify code</button>
+              </form>}
+            </div>}
             <div className="auth-fine">
               Your entries stay private to your account. AI is off by default.
             </div>

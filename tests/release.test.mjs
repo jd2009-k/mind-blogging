@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync,existsSync} from 'node:fs';
+const root=new URL('../',import.meta.url);
+const read=(f)=>readFileSync(new URL(f,root),'utf8');
+test('application configuration is present',()=>{assert.match(read('package.json'),/"build"/);assert.match(read('vite.config.ts'),/react\(\)/)});
+test('password and email login available',()=>{const a=read('src/MindBlog.tsx');assert.match(a,/signInWithPassword/);assert.match(a,/signUpWithPassword/);assert.match(a,/verifyEmailCode/);assert.match(a,/onAuthStateChange/)});
+test('Supabase email auth never embeds private keys',()=>{const c=read('src/cloud.ts');assert.match(c,/signInWithOtp/);assert.doesNotMatch(c,/service_role|sb_secret_/);assert.match(c,/emailRedirectTo/)});
+test('journal access uses Supabase user identity',()=>{const c=read('src/cloud.ts');assert.match(c,/eq\('user_id',user\.id\)/)});
+test('AI respects consent and ownership',()=>{const a=read('api/ai.js');assert.match(a,/authenticated/);assert.match(a,/aiConsent/);assert.match(a,/aiExcluded/)});
+test('suggestion action checks consent and saved text',()=>{const a=read('api/action.js');assert.match(a,/authenticated/);assert.match(a,/aiConsent/);assert.match(a,/body\.includes\(text\)/)});
+test('tags endpoint is authenticated',()=>{const a=read('api/suggest-tags.js');assert.match(a,/authenticated/);assert.match(a,/aiConsent/)});
+test('erase revokes push subscriptions',()=>{const a=read('src/cloud.ts');assert.match(a,/unsubscribe'.*'DELETE'/);assert.match(a,/api\/account\/erase/)});
+test('cron endpoint checks secret',()=>{assert.match(read('api/cron.js'),/CRON_SECRET/)});
+test('service worker listens for notifications',()=>{assert.match(read('public/sw.js'),/addEventListener\('push'/)});
+test('no password data in GitHub configuration',()=>{for(const f of ['vite.config.ts','package.json','vercel.json'])assert.doesNotMatch(read(f),/sb_secret_|service_role|BEGIN PRIVATE KEY/)});
