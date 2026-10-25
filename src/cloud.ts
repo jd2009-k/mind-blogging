@@ -82,6 +82,21 @@ export const auth={
   if(!data.user||!data.session)fail('Code verification did not create a session.');
   return mapUser(data.user);
  },
+ /** One Google action signs in returning users and creates accounts for new users. */
+ signInWithGoogle:async()=>{
+  const settingsResponse=await fetch('https://laodxcqxfbzoeetlfxyd.supabase.co/auth/v1/settings',{
+   headers:{apikey:'sb_publishable_wDgvpfzO9urXXQxj52z3Aw_FTCgDdif'}
+  });
+  if(!settingsResponse.ok)fail('Unable to check Google sign-in availability. Try again.');
+  const settings=await settingsResponse.json();
+  if(!settings?.external?.google)fail('Google sign-in needs to be enabled in Supabase Authentication → Sign In / Providers → Google before you can continue.',503);
+  const {data,error}=await sb.auth.signInWithOAuth({
+   provider:'google',
+   options:{redirectTo:currentRedirect()}
+  });
+  if(error)fail(error.message,error.status||400);
+  if(!data?.url)fail('Google did not return a sign-in address. Please retry.');
+ },
  onAuthStateChange:(callback:(event:string,user:AuthUser|null)=>void)=>{
   const {data:{subscription}}=sb.auth.onAuthStateChange((event,session)=>{
    callback(event,session?.user?mapUser(session.user):null);

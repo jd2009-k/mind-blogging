@@ -171,11 +171,6 @@ function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
-  const [loginEmail,setLoginEmail]=useState('');
-  const [loginSent,setLoginSent]=useState(false);
-  const [loginPassword,setLoginPassword]=useState('');
-  const [loginCode,setLoginCode]=useState('');
-  const [loginMode,setLoginMode]=useState<'password'|'register'|'link'>('password');
   const [notificationBusy,setNotificationBusy] = useState(false);
   const pendingCreateId = useRef('');
   const [serverConflict, setServerConflict] = useState<Entry | null>(null);
@@ -377,25 +372,10 @@ function App() {
       localStorage.setItem('mindblog_edit_' + user.userId + '_' + draft.id, JSON.stringify(draft));
     } catch { /* local storage disabled */ }
   }, [draft, user?.userId]);
-  const signIn = async () => {
-    const email=loginEmail.trim();
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){setErrorMessage('Enter a valid email address.');return;}
-    if(loginMode!=='link' && !loginPassword){setErrorMessage('Enter your password.');return;}
-    setAuthBusy(true);setErrorMessage('');setLoginSent(false);
-    try {
-      if(loginMode==='password')setUser(await auth.signInWithPassword(email,loginPassword));
-      else if(loginMode==='register'){
-        const result=await auth.signUpWithPassword(email,loginPassword);
-        if(result.user)setUser(result.user);else setLoginSent(true);
-      } else {await auth.signIn(email);setLoginSent(true);}
-    } catch(e){fail(e,'Sign-in failed.');}
-    finally{setAuthBusy(false);}
-  };
-  const verifyCode = async () => {
-    setAuthBusy(true);setErrorMessage('');
-    try{setUser(await auth.verifyEmailCode(loginEmail.trim(),loginCode.trim()));}
-    catch(e){fail(e,'Invalid or expired code.');}
-    finally{setAuthBusy(false);}
+  const signInWithGoogle=async()=>{
+    setErrorMessage('');setAuthBusy(true);
+    try{await auth.signInWithGoogle();}
+    catch(error){fail(error,'Google sign-in is unavailable.');setAuthBusy(false);}
   };
   const signOut = async () => {
     await auth.signOut();
@@ -978,41 +958,27 @@ function App() {
                 AI, only when you choose
               </span>
             </div>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
-              {(['password','register','link'] as const).map(mode=>
-                <button key={mode} type="button" onClick={()=>{setLoginMode(mode);setLoginSent(false);setErrorMessage('');}}
-                  aria-pressed={loginMode===mode} style={{border:'1px solid #b5b1c7',borderRadius:8,padding:'9px 12px',
-                  background:loginMode===mode?'#29243f':'#fff',color:loginMode===mode?'#fff':'#29243f'}}>
-                  {mode==='password'?'Sign in':mode==='register'?'Create account':'Email link'}
-                </button>)}
-            </div>
-            <form onSubmit={event=>{event.preventDefault();void signIn();}} style={{display:'flex',flexDirection:'column',gap:12,maxWidth:390}}>
-              <label htmlFor="loginEmail">Your email address</label>
-              <input id="loginEmail" type="email" required autoComplete="email" placeholder="you@example.com"
-                value={loginEmail} onChange={e=>setLoginEmail(e.target.value)}
-                style={{background:'white',color:'#172233',fontSize:16,padding:14,borderRadius:10,border:'1px solid #ddd'}}/>
-              {loginMode!=='link'&&<>
-                <label htmlFor="loginPassword">Password</label>
-                <input id="loginPassword" type="password" required minLength={6}
-                  autoComplete={loginMode==='register'?'new-password':'current-password'}
-                  value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}
-                  style={{background:'white',color:'#172233',fontSize:16,padding:14,borderRadius:10,border:'1px solid #ddd'}}/>
-              </>}
-              <button type="submit" className="button white big" disabled={authBusy}>
-                {authBusy?'Working…':loginMode==='link'?'Email me a sign-in link':loginMode==='register'?'Create account':'Sign in'} <ArrowUpRight size={18}/>
+            <section className="google-login-card" aria-label="Account access">
+              <div className="google-login-eyebrow">SIMPLE, SECURE ACCESS</div>
+              <h2>One account. All your progress.</h2>
+              <p className="google-login-description">
+                Sign in or create your private workspace using your Google account.
+                No password to remember and no email link to copy.
+              </p>
+              <button type="button" className="google-login-button"
+                onClick={()=>{void signInWithGoogle();}} disabled={authBusy}
+                aria-label="Continue with Google">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                  alt="" width={23} height={23} aria-hidden="true"/>
+                <span>{authBusy?'Opening Google…':'Continue with Google'}</span>
+                {authBusy&&<LoaderCircle className="spin" size={18}/>}
               </button>
-            </form>
-            {loginSent&&<div className="auth-help" role="status">
-              <strong>Check your inbox.</strong>
-              <p>{loginMode==='register'?'Confirm your email then use Sign in.':'Open the email link in the same browser. For local use, add your local URL to Supabase Auth redirects.'}</p>
-              {loginMode==='link'&&<form onSubmit={e=>{e.preventDefault();void verifyCode();}}>
-                <label htmlFor="loginCode">Verification code (only if emailed a code)</label>
-                <input id="loginCode" inputMode="numeric" autoComplete="one-time-code"
-                  value={loginCode} onChange={e=>setLoginCode(e.target.value)}
-                  style={{color:'#172233',padding:10}}/>
-                <button type="submit" disabled={authBusy}>Verify code</button>
-              </form>}
-            </div>}
+              <p className="google-login-fine">
+                First time here? Your account is created when you sign in.
+                Returning users can pick up where they left off.
+              </p>
+              {errorMessage&&<p className="google-login-error" role="alert">{errorMessage}</p>}
+            </section>
             <div className="auth-fine">
               Your entries stay private to your account. AI is off by default.
             </div>
@@ -1046,7 +1012,7 @@ function App() {
             </div>
           </div>
         </div>
-        {errorMessage && <div className="auth-error">{errorMessage}</div>}
+
         <div className="auth-footer">
           A little reflection goes a long way. <span>✦</span> Made for the work
           behind the work.

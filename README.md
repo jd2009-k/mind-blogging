@@ -54,3 +54,19 @@ For email-link and account-confirmation redirects to return to your local app, a
 The preview URL can differ if Vite chooses another port; add that origin too. Make sure **Authentication → Providers → Email** allows the desired authentication mode, and complete confirmation messages before signing in. Do not put a service-role key into local source.
 
 **Important:** This commit was TypeScript-checked and built, but a complete real email/password login has not been tested with a confirmed account. The hosted production URL continues to run its previous deployment; these repository changes are for the local source until redeployed.
+
+## Google-only sign-in (preview implementation)
+
+The single **Continue with Google** button signs in existing users and creates accounts for new users. It replaces the previous email/password and magic-link forms in the `feature/google-only-auth` branch.
+
+Google OAuth **is not configured yet** on this Supabase project (`external.google=false` as checked on 2026-10-26). The branch intentionally checks provider availability and shows an actionable message rather than sending users into a broken sign-in flow.
+
+**To make sign-in functional:**
+
+1. In the [Google Cloud Auth Platform](https://console.cloud.google.com/auth/clients), configure your OAuth consent screen (External audience for regular Google accounts; add test users while testing) and create an **OAuth client ID** of type **Web application**.
+2. Set Authorized JavaScript origins to `https://mind-blogging-jd-ff4c.vercel.app` (and your local address such as `http://localhost:5173` when developing). Set the **Authorized redirect URI** to `https://laodxcqxfbzoeetlfxyd.supabase.co/auth/v1/callback`. Do not substitute your Vercel URL for this Google callback.
+3. Open the [Supabase Google provider settings](https://supabase.com/dashboard/project/laodxcqxfbzoeetlfxyd/auth/providers), enable Google, and enter the **Client ID and Client Secret privately inside Supabase**. Never paste the secret into a chat or commit it to GitHub.
+4. Under [Supabase Auth URL Configuration](https://supabase.com/dashboard/project/laodxcqxfbzoeetlfxyd/auth/url-configuration), add `https://mind-blogging-jd-ff4c.vercel.app/**`, the preview domain, and development redirect patterns you use. Set the Site URL to the production site.
+5. Test first-time account creation and returning-user sign-in in a browser. Check the session survives reload and leads to a private workspace.
+
+**Release safeguard:** Do not deploy this Google-only branch to production until the Google provider is enabled and end-to-end sign-in succeeds; the existing site otherwise would have no functioning authentication method.
