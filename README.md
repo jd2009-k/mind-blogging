@@ -40,3 +40,17 @@ The weekly push cron is scheduled for Monday at 09:00 Asia/Kolkata. Manage notif
 ## Security
 
 Supabase Row Level Security must be enabled for `public.mind_blog_records` with per-user policies on `user_id`. Never remove RLS to make the app work. Store private secrets only in deployment environment variables.
+
+## Signing in when running locally
+
+Use the **Sign in** tab with an existing email and password, or choose **Create account** to register. Supabase may require email confirmation before password sign-in works. The **Email link** tab is also available, and supports entering a code only when the email template actually sends a code.
+
+For email-link and account-confirmation redirects to return to your local app, add your exact development URL to **Supabase Dashboard → Authentication → URL Configuration → Redirect URLs**:
+
+- `http://localhost:5173/**`
+- `http://127.0.0.1:5173/**`
+- `https://mind-blogging-jd-ff4c.vercel.app/**`
+
+The preview URL can differ if Vite chooses another port; add that origin too. Make sure **Authentication → Providers → Email** allows the desired authentication mode, and complete confirmation messages before signing in. Do not put a service-role key into local source.
+
+**Important:** This commit was TypeScript-checked and built, but a complete real email/password login has not been tested with a confirmed account. The hosted production URL continues to run its previous deployment; these repository changes are for the local source until redeployed.
