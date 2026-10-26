@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import {useState} from 'react';
 import MindBlog from './MindBlog';
 import PlayfulProfile from './PlayfulProfile';
-import type { WorkspacePage } from './PlayfulProfile';
+import PlayfulWorkspace from './PlayfulWorkspace';
+import type {WorkspacePage} from './PlayfulProfile';
 
-export default function App() {
-  const [workspacePage, setWorkspacePage] = useState<WorkspacePage | null>(null);
-  // The playful profile is always the first screen after opening the site.
-  // Existing authentication, journal data and backend integrations are unchanged.
-  return workspacePage
-    ? <MindBlog initialPage={workspacePage} />
-    : <PlayfulProfile onEnter={setWorkspacePage} />;
+type AdvancedPage='home'|'capture'|'timeline'|'growth'|'reviews'|'settings';
+const playfulPage=(page:WorkspacePage):'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'=>
+  page==='home'?'overview':page==='timeline'?'journal':page;
+
+export default function App(){
+  const [entry,setEntry]=useState<WorkspacePage|null>(null);
+  const [advanced,setAdvanced]=useState<AdvancedPage|null>(null);
+  // Open the playful profile first, then the fully styled private workspace.
+  // Advanced tools preserve the original AI and source-backed review controls.
+  if(advanced)return <MindBlog initialPage={advanced}/>;
+  if(entry)return <PlayfulWorkspace initialPage={playfulPage(entry)} onAdvanced={page=>setAdvanced(page||'home')}/>;
+  return <PlayfulProfile onEnter={setEntry}/>;
 }
