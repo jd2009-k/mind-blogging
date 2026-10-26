@@ -9,14 +9,17 @@ export default function PlayfulLogin({onSuccess,onAdvanced}:{
 }) {
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
-  const [mode,setMode]=useState<'signin'|'signup'|'email'>('signin');
+  const [mode,setMode]=useState<'signin'|'signup'|'email'|'recover'>('signin');
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
   const [positive,setPositive]=useState(false);
   const submit=async(event:React.FormEvent)=>{
     event.preventDefault();setBusy(true);setMessage('');setPositive(false);
     try {
-      if(mode==='email') {
+      if(mode==='recover') {
+        await auth.resetPassword(email);
+        setPositive(true);setMessage('If this account exists, a password recovery link will arrive by email.');
+      } else if(mode==='email') {
         await auth.signIn(email);
         setPositive(true);setMessage('A sign-in link was sent. Check your email and return here.');
       } else if(mode==='signup') {
@@ -53,14 +56,14 @@ export default function PlayfulLogin({onSuccess,onAdvanced}:{
         <label htmlFor="pl-email">Email address</label>
         <input id="pl-email" type="email" required autoComplete="email" value={email}
           onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
-        {mode!=='email'&&<>
+        {mode!=='email'&&mode!=='recover'&&<>
           <label htmlFor="pl-password">Password</label>
           <input id="pl-password" type="password" required minLength={6} value={password}
             onChange={e=>setPassword(e.target.value)}
             autoComplete={mode==='signup'?'new-password':'current-password'}/>
         </>}
         <button type="submit" disabled={busy} className="pl-login-submit">
-          {busy?'Please wait…':mode==='signup'?'Create my account':mode==='email'?'Send sign-in link':'Sign in securely'}
+          {busy?'Please wait…':mode==='signup'?'Create my account':mode==='email'?'Send sign-in link':mode==='recover'?'Email recovery link':'Sign in securely'}
           <ArrowRight size={17}/>
         </button>
       </form>
@@ -73,6 +76,9 @@ export default function PlayfulLogin({onSuccess,onAdvanced}:{
         </button>
         <button type="button" onClick={()=>{setMode(mode==='email'?'signin':'email');setMessage('');}}>
           {mode==='email'?'Use password':'Email link'}
+        </button>
+        <button type="button" onClick={()=>{setMode(mode==='recover'?'signin':'recover');setMessage('');}}>
+          {mode==='recover'?'Back to sign in':'Forgot password?'}
         </button>
       </div>
       <button type="button" className="pl-login-advanced" onClick={()=>setMode('email')}>
