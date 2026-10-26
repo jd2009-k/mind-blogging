@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import {api,auth} from './cloud';
+import {cleanProfile,emptyProfile,profileFromSettings,profilePatch} from './account-profile';
 import {
   ArrowRight, BookOpen, CalendarDays, Check, ChevronRight,
   Feather, Heart, Home, LockKeyhole, PenLine, Pencil,
@@ -10,7 +12,7 @@ export type WorkspacePage = 'home' | 'capture' | 'timeline' | 'growth' | 'review
 type Color = 'lilac' | 'coral' | 'mint' | 'amber';
 type Profile = { name: string; headline: string; bio: string; color: Color };
 
-const PROFILE_KEY = 'mind-blogging-personal-profile-v1';
+// The old anonymous localStorage profile is deliberately never read.
 const blankProfile: Profile = {
   name: '', headline: '', bio: '', color: 'lilac'
 };
@@ -20,24 +22,6 @@ const colors: { color: Color; label: string }[] = [
   { color: 'mint', label: 'Mint' },
   { color: 'amber', label: 'Sunshine' }
 ];
-
-function loadProfile(): Profile {
-  try {
-    const value = window.localStorage.getItem(PROFILE_KEY);
-    if (!value) return { ...blankProfile };
-    const record: unknown = JSON.parse(value);
-    if (!record || typeof record !== 'object') return { ...blankProfile };
-    const profile = record as Partial<Profile>;
-    return {
-      name: typeof profile.name === 'string' ? profile.name.slice(0, 60) : '',
-      headline: typeof profile.headline === 'string' ? profile.headline.slice(0, 80) : '',
-      bio: typeof profile.bio === 'string' ? profile.bio.slice(0, 240) : '',
-      color: colors.some(item => item.color === profile.color) ? profile.color! : 'lilac'
-    };
-  } catch {
-    return { ...blankProfile };
-  }
-}
 
 function initials(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).slice(0, 2)
@@ -73,7 +57,33 @@ function SparkFriend() {
 type Props = { onEnter: (page: WorkspacePage) => void };
 
 export default function PlayfulProfile({ onEnter }: Props) {
-  const [profile, setProfile] = useState<Profile>(loadProfile);
+  const [profile, setProfile] = useState<Profile>(emptyProfile);
+  const [userId,setUserId]=useState<string|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [saving,setSaving]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    auth.getUser().then(u=>{if(active)setUserId(u?.userId||null);})
+      .catch(()=>{if(active)setUserId(null);})
+      .finally(()=>{if(active)setLoading(false);});
+    const off=auth.onAuthStateChange((_event,u)=>{
+      if(!active)return;
+      setProfile(emptyProfile());
+      setSaved(false);
+      setUserId(u?.userId||null);
+    });
+    return()=>{active=false;off();};
+  },[]);
+  useEffect(()=>{
+    if(!userId){setProfile(emptyProfile());return;}
+    let active=true;
+    setLoading(true);
+    api.get('/api/bootstrap').then(({data})=>{
+      if(active)setProfile(profileFromSettings(data.settings,userId));
+    }).catch(e=>{if(active)setError((e as Error).message||'Profile could not be loaded.');})
+      .finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[userId]);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
   const nav = [
@@ -84,26 +94,18 @@ export default function PlayfulProfile({ onEnter }: Props) {
     { label: 'Reviews', page: 'reviews' as const, icon: CalendarDays },
     { label: 'Settings', page: 'settings' as const, icon: Settings2 }
   ];
-  const save = () => {
-    if (!profile.name.trim()) {
-      setError('Please add your display name.');
-      return;
-    }
-    const updated = {
-      ...profile,
-      name: profile.name.trim().slice(0, 60),
-      headline: profile.headline.trim().slice(0, 80),
-      bio: profile.bio.trim().slice(0, 240)
-    };
-    try {
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
-    } catch {
-      setError('Browser storage is unavailable. You can still open your workspace.');
-      return;
-    }
-    setProfile(updated);
-    setError('');
-    setSaved(true);
+  const save = async () => {
+    if(!userId){setError('Please sign in before saving private profile details.');return;}
+    if (!profile.name.trim()) {setError('Please add your display name.');return;}
+    const updated=cleanProfile({
+      ...profile,name:profile.name.trim(),headline:profile.headline.trim(),bio:profile.bio.trim()
+    });
+    setSaving(true);setError('');
+    try{
+      await api.put('/api/settings',profilePatch(userId,updated));
+      setProfile(updated);setSaved(true);
+    }catch(e){setError((e as Error)?.message||'Could not save profile to your account.');}
+    finally{setSaving(false);}
   };
   const change = (values: Partial<Profile>) => {
     setProfile(current => ({ ...current, ...values }));
@@ -170,7 +172,7 @@ export default function PlayfulProfile({ onEnter }: Props) {
               <span className="pl-eyebrow">MY PERSONAL SPACE</span>
               <h2>{profile.name.trim() || 'Your name'}</h2>
               <p>{profile.headline.trim() || 'Your next chapter begins here.'}</p>
-              <span className="pl-local-chip"><LockKeyhole size={14} /> Profile saved on this device</span>
+              <span className="pl-local-chip"><LockKeyhole size={14} /> Profile stored in your private account</span>
             </div>
             <span className="pl-hero-decoration" aria-hidden="true">✳</span>
           </section>
@@ -206,10 +208,13 @@ export default function PlayfulProfile({ onEnter }: Props) {
                 ))}
               </div>
               {error && <p className="pl-error" role="alert">{error}</p>}
-              {saved && <p className="pl-success" role="status"><Check size={17} /> Profile saved in this browser.</p>}
+              {saved && <p className="pl-success" role="status"><Check size={17} /> Profile saved to your private account.</p>}
               <div className="pl-profile-actions">
                 <button type="button" className="pl-button pl-secondary" onClick={() => onEnter('home')}>Open workspace</button>
-                <button type="button" className="pl-button pl-primary" onClick={save}><Check size={17} /> Save my profile</button>
+                <button type="button" className="pl-button pl-primary" disabled={loading||saving}
+                  onClick={userId?()=>void save():()=>onEnter('home')}>
+                  <Check size={17} /> {saving?'Saving…':userId?'Save my profile':'Sign in to save'}
+                </button>
               </div>
             </section>
 
@@ -226,7 +231,7 @@ export default function PlayfulProfile({ onEnter }: Props) {
               <section className="pl-card pl-security-card">
                 <ShieldCheck size={25} />
                 <h3>Your journal remains private</h3>
-                <p>Your existing account and saved records remain in the separate authenticated workspace. This display profile is stored on this browser only.</p>
+                <p>Your existing account and saved records remain in the separate authenticated workspace. Your profile settings are account-specific and synchronized privately after sign-in.</p>
                 <button type="button" onClick={() => onEnter('home')}>Go to secure sign-in <ArrowRight size={15} /></button>
               </section>
               <section className="pl-affirmation"><Sparkles size={19} /><p>Small steps still move you forward.</p><Heart size={17} /></section>
