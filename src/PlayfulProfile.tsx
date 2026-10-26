@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { auth } from './cloud';
 import {
   ArrowRight, BookOpen, CalendarDays, Check, ChevronRight,
   Feather, Heart, Home, LockKeyhole, PenLine, Pencil,
@@ -10,7 +11,8 @@ export type WorkspacePage = 'home' | 'capture' | 'timeline' | 'growth' | 'review
 type Color = 'lilac' | 'coral' | 'mint' | 'amber';
 type Profile = { name: string; headline: string; bio: string; color: Color };
 
-const PROFILE_KEY = 'mind-blogging-personal-profile-v1';
+const PROFILE_KEY = 'mind-blogging-personal-profile-v2';
+// Legacy unowned profiles are intentionally not migrated: ownership cannot be established.
 const blankProfile: Profile = {
   name: '', headline: '', bio: '', color: 'lilac'
 };
@@ -22,8 +24,12 @@ const colors: { color: Color; label: string }[] = [
 ];
 
 function loadProfile(): Profile {
+  // Public profile editing must never reveal another signed-in user's data.
+  // The legacy device-wide key is deliberately ignored.
   try {
-    const value = window.localStorage.getItem(PROFILE_KEY);
+    const userId = window.sessionStorage.getItem('mind-blogging-profile-owner');
+    if (!userId) return { ...blankProfile };
+    const value = window.localStorage.getItem(PROFILE_KEY + ':' + userId);
     if (!value) return { ...blankProfile };
     const record: unknown = JSON.parse(value);
     if (!record || typeof record !== 'object') return { ...blankProfile };
@@ -73,6 +79,8 @@ function SparkFriend() {
 type Props = { onEnter: (page: WorkspacePage) => void };
 
 export default function PlayfulProfile({ onEnter }: Props) {
+  // A profile is blank until the current authenticated identity is established.
+  // No device-wide profile is ever read.
   const [profile, setProfile] = useState<Profile>(loadProfile);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -84,7 +92,13 @@ export default function PlayfulProfile({ onEnter }: Props) {
     { label: 'Reviews', page: 'reviews' as const, icon: CalendarDays },
     { label: 'Settings', page: 'settings' as const, icon: Settings2 }
   ];
-  const save = () => {
+  const save = async () => {
+    const currentUser = await auth.getUser().catch(() => null);
+    if (!currentUser?.userId) {
+      setError('Sign in before saving a private profile.');
+      return;
+    }
+    window.sessionStorage.setItem('mind-blogging-profile-owner', currentUser.userId);
     if (!profile.name.trim()) {
       setError('Please add your display name.');
       return;
@@ -96,7 +110,7 @@ export default function PlayfulProfile({ onEnter }: Props) {
       bio: profile.bio.trim().slice(0, 240)
     };
     try {
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
+      window.localStorage.setItem(PROFILE_KEY + ':' + currentUser.userId, JSON.stringify(updated));
     } catch {
       setError('Browser storage is unavailable. You can still open your workspace.');
       return;
