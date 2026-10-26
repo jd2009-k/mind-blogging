@@ -79,7 +79,7 @@ type Draft = {
   tags: string;
   evidence: boolean;
 };
-const STORE_KEY = 'mind-blogging-polished-demo-2026';
+const STORE_KEY = 'mind-blogging-playful-ui-settings-2026';
 const DEFAULT_PROFILE: Profile = {
   name: 'Jay',
   headline: 'Your little wins explorer',
@@ -918,7 +918,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
                         : 0}{' '}
                       words
                     </span>
-                    <span>Saved on your device</span>
+                    <span>Saved to your private account</span>
                   </div>
                   <label className="field-label" htmlFor="entry-tags">
                     Add a few tags{' '}
@@ -983,7 +983,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
                     ))}
                   </div>
                   <div className="privacy-note">
-                    <ShieldCheck size={17} /> Just for this demo. No cloud sync
+                    <ShieldCheck size={17} /> Private note, synced to your account
                     or real AI.
                   </div>
                 </aside>
