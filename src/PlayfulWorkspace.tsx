@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {api,auth} from './cloud';
 import type {AuthUser} from './cloud';
 import PlayfulLogin from './PlayfulLogin';
+import PlayfulAdvanced from './PlayfulAdvanced';
 import './playful-full.css';
 import {
   Home,
@@ -44,7 +45,7 @@ type Page =
   | 'reviews'
   | 'settings'
   | 'profile'
-  | 'welcome';
+  | 'advanced';
 type Category = 'Small win' | 'Challenge' | 'Idea' | 'Feedback';
 type Entry = {
   id: string;
@@ -283,10 +284,11 @@ const tabs = [
   { page: 'reviews' as const, icon: CalendarDays, text: 'Reviews' },
   { page: 'settings' as const, icon: Settings2, text: 'Settings' },
   { page: 'profile' as const, icon: UserRound, text: 'My profile' },
+  { page: 'advanced' as const, icon: Sparkles, text: 'AI & advanced tools' },
 ];
 const categoryClass = (c: Category) => c.toLowerCase().replace(' ', '-');
-type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';onAdvanced:(page?:'home'|'capture'|'timeline'|'growth'|'reviews'|'settings')=>void};
-function App({initialPage='overview',onAdvanced}:Props) {
+type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';};
+function App({initialPage='overview'}:Props) {
   const [user,setUser]=useState<AuthUser|null>(null);
   const [authReady,setAuthReady]=useState(false);
   const [loading,setLoading]=useState(false);
@@ -522,7 +524,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
     finally{setBusy(false);}
   }
   if(!authReady)return <div className="playful-loading" role="status">Opening Mind Blogging…</div>;
-  if(!user)return <PlayfulLogin onSuccess={setUser} onAdvanced={()=>onAdvanced('home')}/>;
+  if(!user)return <PlayfulLogin onSuccess={setUser} onAdvanced={()=>{setPage('advanced');}}/>;
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -573,7 +575,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
             <strong>A little bit counts.</strong>
             <p>Keep the moments that make your story.</p>
           </div>
-          <button className="side-demo" onClick={() => onAdvanced('home')}>
+          <button className="side-demo" onClick={() => navigate('advanced')}>
             <Sparkles size={17} /> AI & advanced tools <ArrowUpRight size={15} />
           </button>
         </div>
@@ -608,7 +610,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
         </header>
         <main className="content" id="main">
           {backendError && <div className="form-error" role="alert">{backendError}
-            <button className="text-link" onClick={()=>onAdvanced('home')}>Advanced workspace</button>
+            <button className="text-link" onClick={()=>navigate('advanced')}>Advanced workspace</button>
           </div>}
           {loading && <p className="muted-note" role="status">Syncing your private records…</p>}
           {page === 'overview' && (
@@ -1395,6 +1397,9 @@ function App({initialPage='overview',onAdvanced}:Props) {
               </div>
             </div>
           )}
+          {page === 'advanced' && (
+            <PlayfulAdvanced onBack={()=>navigate('overview')} onJournal={()=>navigate('journal')}/>
+          )}
           {page === 'settings' && (
             <div className="page-screen settings-page">
               <div className="page-heading">
@@ -1481,7 +1486,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
                 <p className="settings-description">
                   <ShieldCheck size={19} /> Journal, goals and evidence are stored in your private account. Manage AI consent and data export in the advanced workspace.
                 </p>
-                <button className="secondary-button" onClick={() => onAdvanced('settings')}>
+                <button className="secondary-button" onClick={() => navigate('advanced')}>
                   <Sparkles size={17} /> AI consent, reminders & data export
                 </button>
                 <button className="danger-button" disabled={busy} onClick={() => void reset()}>
@@ -1493,7 +1498,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
         </main>
         <footer className="footer">
           Made for little moments and meaningful growth <span>✳</span>{' '}
-          <button onClick={() => onAdvanced('home')}>AI & advanced tools</button>
+          <button onClick={() => navigate('advanced')}>AI & advanced tools</button>
         </footer>
       </div>
       <nav className="bottom-nav" aria-label="Mobile navigation">
@@ -1526,7 +1531,7 @@ function App({initialPage='overview',onAdvanced}:Props) {
         <button
           className={
             'mobile-nav-btn' +
-            (more || page === 'reviews' || page === 'settings' || page === 'profile' ? ' active' : '')
+            (more || page === 'reviews' || page === 'settings' || page === 'profile' || page === 'advanced' ? ' active' : '')
           }
           onClick={() => setMore(v => !v)}
           aria-expanded={more}
@@ -1574,15 +1579,15 @@ function App({initialPage='overview',onAdvanced}:Props) {
                 icon: Settings2,
               },
               {
-                page: 'welcome' as const,
+                page: 'advanced' as const,
                 label: 'AI & advanced tools',
-                icon: ShieldCheck,
+                icon: Sparkles,
               },
             ].map(t => (
               <button
                 className="drawer-item"
                 key={t.page}
-                onClick={() => t.page==='welcome'?onAdvanced('home'):navigate(t.page)}
+                onClick={() => navigate(t.page)}
               >
                 <t.icon size={21} />
                 <span>{t.label}</span>
