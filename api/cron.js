@@ -1,7 +1,10 @@
 import {list,get,del} from '@vercel/blob';
 import webpush from 'web-push';
 export default async function handler(req,res){
- if(req.headers.authorization!=='Bearer '+process.env.CRON_SECRET)return res.status(401).json({error:'Unauthorized'});
+ if(req.method!=='GET')return res.status(405).json({error:'GET only'});
+ // Fail closed if the deployment secret is missing or empty.
+ const secret=process.env.CRON_SECRET;
+ if(!secret||req.headers.authorization!==`Bearer ${secret}`)return res.status(401).json({error:'Unauthorized'});
  if(!process.env.VAPID_PUBLIC_KEY||!process.env.VAPID_PRIVATE_KEY)return res.status(503).json({error:'Push not configured'});
  webpush.setVapidDetails('mailto:noreply@example.com',process.env.VAPID_PUBLIC_KEY,process.env.VAPID_PRIVATE_KEY);
  let cursor,sent=0,failed=0;
