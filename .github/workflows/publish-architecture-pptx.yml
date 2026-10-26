@@ -1,0 +1,39 @@
+name: Publish architecture PowerPoint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/architecture-reference.md'
+      - 'scripts/build_architecture_pptx.py'
+      - '.github/workflows/publish-architecture-pptx.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install slide generator
+        run: python -m pip install python-pptx==1.0.2
+      - name: Generate editable presentation
+        run: python scripts/build_architecture_pptx.py
+      - name: Publish PowerPoint to GitHub
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/Mind_Blogging_Tech_Stack_Architecture.pptx
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: publish generated architecture PowerPoint [skip ci]"
+            git push
+          fi
