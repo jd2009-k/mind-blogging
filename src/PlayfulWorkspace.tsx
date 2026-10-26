@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {api,auth} from './cloud';
+import type {AuthUser} from './cloud';
+import PlayfulLogin from './PlayfulLogin';
+import './playful-full.css';
 import {
   Home,
   PenLine,
@@ -104,97 +108,24 @@ const blank = (): Draft => ({
   tags: '',
   evidence: false,
 });
-function initialData(): Data {
-  return {
-    entries: [
-      {
-        id: 'e1',
-        title: 'Presented our new design direction',
-        notes:
-          'The team loved the calmer onboarding flow. I felt nervous presenting it, but the feedback was genuinely useful.',
-        date: today(0),
-        category: 'Small win',
-        tags: ['design', 'team'],
-        evidence: true,
-      },
-      {
-        id: 'e2',
-        title: 'A little feedback worth keeping',
-        notes:
-          '“Your explanation made a complex idea feel simple.” A nice reminder that clarity is a strength.',
-        date: today(1),
-        category: 'Feedback',
-        tags: ['feedback', 'growth'],
-        evidence: true,
-      },
-      {
-        id: 'e3',
-        title: 'The prototype finally clicked',
-        notes:
-          'I figured out why our flow was taking so long. Simplifying one screen changed the entire experience.',
-        date: today(2),
-        category: 'Small win',
-        tags: ['product'],
-        evidence: true,
-      },
-      {
-        id: 'e4',
-        title: 'What I would do differently',
-        notes:
-          'I spent too much time polishing the details before validating the idea. Next time I will test earlier.',
-        date: today(4),
-        category: 'Challenge',
-        tags: ['learning'],
-        evidence: false,
-      },
-      {
-        id: 'e5',
-        title: 'Idea: a Friday highlights ritual',
-        notes:
-          'What if I saved my most useful lesson from each week and checked on it every Friday?',
-        date: today(6),
-        category: 'Idea',
-        tags: ['planning'],
-        evidence: false,
-      },
-    ],
-    goals: [
-      {
-        id: 'g1',
-        title: 'Present a project with confidence',
-        steps: [
-          { id: 's1', label: 'Create a clear outline', done: true },
-          { id: 's2', label: 'Rehearse with a friend', done: true },
-          { id: 's3', label: 'Present and collect feedback', done: false },
-        ],
-      },
-      {
-        id: 'g2',
-        title: 'Write three reflections this week',
-        steps: [
-          { id: 's4', label: 'First reflection', done: true },
-          { id: 's5', label: 'Second reflection', done: false },
-          { id: 's6', label: 'Third reflection', done: false },
-        ],
-      },
-    ],
-    prefs: { dark: false, motion: true, companion: true },
-    profile: { ...DEFAULT_PROFILE },
-  };
+
+const PROFILE_KEY='mind-blogging-personal-profile-v1';
+type StoredEntry={id:string;title:string;body:string;kind:string;date:string;tags:string[];version:number;evidence?:boolean;aiExcluded?:boolean};
+type StoredGoal={id:string;title:string;nextStep:string;status:string;version:number};
+type StoredArtifact={id:string;sourceEntryId?:string};
+const categoryOf=(k:string):Category=>/challenge|blocker/i.test(k)?'Challenge':/idea|insight/i.test(k)?'Idea':/feedback/i.test(k)?'Feedback':'Small win';
+const kindOf=(c:Category)=>({'Small win':'accomplishment',Challenge:'challenge',Idea:'idea',Feedback:'feedback'} as Record<Category,string>)[c];
+function initialData():Data{
+ let prefs:Prefs={dark:false,motion:true,companion:true};
+ let profile:Profile={name:'',headline:'',bio:'',color:'lilac'};
+ try{const v=JSON.parse(localStorage.getItem(STORE_KEY)||'{}');if(v?.prefs)prefs={dark:!!v.prefs.dark,motion:v.prefs.motion!==false,companion:v.prefs.companion!==false};}catch{}
+ try{const v=JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}');
+  profile={name:String(v.name||'').slice(0,60),headline:String(v.headline||'').slice(0,80),bio:String(v.bio||'').slice(0,240),color:AVATAR_COLORS.some(x=>x.color===v.color)?v.color:'lilac'};
+ }catch{}
+ return{entries:[],goals:[],prefs,profile};
 }
-function load(): Data {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const obj = JSON.parse(raw) as Data;
-      if (Array.isArray(obj.entries) && Array.isArray(obj.goals) && obj.prefs)
-        return obj;
-    }
-  } catch {
-    /* first visit or blocked local storage */
-  }
-  return initialData();
-}
+function load():Data{return initialData();}
+
 function initialsFor(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts.slice(0, 2).map(word => word[0]?.toUpperCase()).join('') || 'J');
@@ -354,11 +285,20 @@ const tabs = [
   { page: 'profile' as const, icon: UserRound, text: 'My profile' },
 ];
 const categoryClass = (c: Category) => c.toLowerCase().replace(' ', '-');
-function App() {
+type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';onAdvanced:(page?:'home'|'capture'|'timeline'|'growth'|'reviews'|'settings')=>void};
+function App({initialPage='overview',onAdvanced}:Props) {
+  const [user,setUser]=useState<AuthUser|null>(null);
+  const [authReady,setAuthReady]=useState(false);
+  const [loading,setLoading]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const [backendError,setBackendError]=useState('');
+  const rawEntries=useRef<Record<string,StoredEntry>>({});
+  const rawGoals=useRef<Record<string,StoredGoal>>({});
+  const rawArtifacts=useRef<StoredArtifact[]>([]);
   const [data, setData] = useState<Data>(load);
   const [profileDraft, setProfileDraft] = useState<Profile>(() => ({ ...data.profile || DEFAULT_PROFILE }));
   const [profileError, setProfileError] = useState('');
-  const [page, setPage] = useState<Page>('overview');
+  const [page, setPage] = useState<Page>(initialPage);
   const [more, setMore] = useState(false);
   const [draft, setDraft] = useState<Draft>(blank);
   const [query, setQuery] = useState('');
@@ -367,13 +307,36 @@ function App() {
   const [formError, setFormError] = useState('');
   const [burst, setBurst] = useState(0);
   const [showIdeas, setShowIdeas] = useState(false);
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(data));
-    } catch {
-      /* demo works in memory */
-    }
-  }, [data]);
+  useEffect(()=>{try{localStorage.setItem(STORE_KEY,JSON.stringify({prefs:data.prefs}));}catch{}},[data.prefs]);
+  useEffect(()=>{
+    let active=true;auth.getUser().then(me=>{if(active){setUser(me);setAuthReady(true);}})
+      .catch(e=>{if(active){setBackendError(String(e?.message||'Sign-in unavailable'));setAuthReady(true);}});
+    const off=auth.onAuthStateChange((_event,me)=>{if(active){setUser(me);setAuthReady(true);}});
+    return()=>{active=false;off();};
+  },[]);
+  useEffect(()=>{
+    if(!user){setData(p=>({...p,entries:[],goals:[]}));return;}
+    let active=true;setLoading(true);setBackendError('');
+    api.get('/api/bootstrap').then(({data:remote})=>{
+      if(!active)return;
+      const entries=(remote.entries||[]) as StoredEntry[];
+      const goals=(remote.goals||[]) as StoredGoal[];
+      const artifacts=(remote.artifacts||[]) as StoredArtifact[];
+      const linked=new Set(artifacts.map(a=>a.sourceEntryId).filter(Boolean));
+      rawEntries.current=Object.fromEntries(entries.map(e=>[e.id,e]));
+      rawGoals.current=Object.fromEntries(goals.map(g=>[g.id,g]));
+      rawArtifacts.current=artifacts;
+      setData(p=>({...p,
+        entries:entries.map(e=>({id:e.id,title:e.title,notes:e.body,date:e.date,
+          category:categoryOf(e.kind),tags:Array.isArray(e.tags)?e.tags:[],
+          evidence:!!e.evidence||linked.has(e.id)})),
+        goals:goals.map(g=>({id:g.id,title:g.title,
+          steps:[{id:g.id,label:g.nextStep||'Take the first small step',done:g.status==='completed'}]}))
+      }));
+    }).catch(e=>{if(active)setBackendError(String(e?.message||'Unable to load records'));})
+      .finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[user?.userId]);
   useEffect(() => {
     if (!toast) return;
     const t = window.setTimeout(() => setToast(''), 3400);
@@ -429,10 +392,12 @@ function App() {
       headline: profileDraft.headline.trim().slice(0, 80),
       bio: profileDraft.bio.trim().slice(0, 240),
     };
+    try{localStorage.setItem(PROFILE_KEY,JSON.stringify(saved));}
+    catch{setProfileError('Could not save your device profile.');return;}
     setData(prev => ({ ...prev, profile: saved }));
     setProfileDraft(saved);
     setProfileError('');
-    setToast('Your demo profile has been saved on this device.');
+    setToast('Your profile has been saved on this device.');
   }
   function startCapture(entry?: Entry) {
     setDraft(
@@ -451,92 +416,84 @@ function App() {
     setFormError('');
     navigate('capture');
   }
-  function save() {
-    if (!draft.title.trim()) {
-      setFormError('Please add a title for this moment.');
-      return;
-    }
-    if (!draft.notes.trim()) {
-      setFormError('Add a few words about what happened.');
-      return;
-    }
-    const ent: Entry = {
-      id: draft.id || id(),
-      title: draft.title.trim(),
-      notes: draft.notes.trim(),
-      date: draft.date || today(),
-      category: draft.category,
-      tags: draft.tags
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .slice(0, 6),
-      evidence: draft.evidence,
-    };
-    setData(prev => ({
-      ...prev,
-      entries: draft.id
-        ? prev.entries.map(e => (e.id === draft.id ? ent : e))
-        : [ent, ...prev.entries],
-    }));
-    setToast(
-      draft.id
-        ? 'Your moment is updated.'
-        : 'A little win for showing up. Moment saved!'
-    );
-    navigate('journal');
+  async function save(){
+    if(!draft.title.trim()){setFormError('Please add a title.');return;}
+    if(!draft.notes.trim()){setFormError('Please add some notes.');return;}
+    setBusy(true);setFormError('');
+    try{
+      const previous=draft.id?rawEntries.current[draft.id]:undefined;
+      const payload={title:draft.title.trim(),body:draft.notes.trim(),date:draft.date||today(),
+        kind:previous?.kind||kindOf(draft.category),tags:draft.tags.split(',').map(s=>s.trim()).filter(Boolean).slice(0,6),
+        evidence:draft.evidence,aiExcluded:previous?.aiExcluded||false};
+      const response=draft.id
+        ?await api.put('/api/entries/'+encodeURIComponent(draft.id),{...payload,expectedVersion:previous?.version})
+        :await api.post('/api/entries',payload);
+      const record=response.data.entry as StoredEntry;
+      rawEntries.current[record.id]=record;
+      if(draft.evidence&&!rawArtifacts.current.some(a=>a.sourceEntryId===record.id)){
+        try{
+          const {data}=await api.post('/api/artifacts',{
+            title:record.title,description:record.body.slice(0,900),outcome:'',kind:'accomplishment',
+            sourceEntryId:record.id,sourceVersion:record.version,quote:record.body.slice(0,200)
+          });
+          rawArtifacts.current.push(data.artifact);
+        }catch(err){setBackendError('Note saved, but evidence could not be linked: '+String((err as Error)?.message||err));}
+      }
+      const entry:Entry={id:record.id,title:record.title,notes:record.body,date:record.date,
+        category:categoryOf(record.kind),tags:record.tags||[],evidence:draft.evidence};
+      setData(p=>({...p,entries:draft.id?p.entries.map(e=>e.id===record.id?entry:e):[entry,...p.entries]}));
+      setToast(draft.id?'Moment updated.':'Moment saved to your private journal!');
+      navigate('journal');
+    }catch(err){setFormError(String((err as Error)?.message||'Unable to save entry.'));}
+    finally{setBusy(false);}
   }
-  function remove(entry: Entry) {
-    if (
-      !window.confirm(
-        'Delete this journal entry? This cannot be undone in the demo.'
-      )
-    )
-      return;
-    setData(prev => ({
-      ...prev,
-      entries: prev.entries.filter(e => e.id !== entry.id),
-    }));
-    setToast('Entry deleted.');
+  async function remove(entry:Entry){
+    if(!window.confirm('Permanently delete this journal entry?'))return;
+    setBusy(true);
+    try{
+      await api.delete('/api/entries/'+encodeURIComponent(entry.id));
+      delete rawEntries.current[entry.id];
+      rawArtifacts.current=rawArtifacts.current.filter(a=>a.sourceEntryId!==entry.id);
+      setData(p=>({...p,entries:p.entries.filter(e=>e.id!==entry.id)}));
+      setToast('Entry deleted.');
+    }catch(err){setBackendError(String((err as Error)?.message||'Delete failed.'));}
+    finally{setBusy(false);}
   }
-  function toggleStep(gid: string, sid: string) {
-    const g = data.goals.find(x => x.id === gid);
-    if (!g) return;
-    const wasComplete = g.steps.every(s => s.done);
-    const updated = g.steps.map(s =>
-      s.id === sid ? { ...s, done: !s.done } : s
-    );
-    const completed = !wasComplete && updated.every(s => s.done);
-    setData(prev => ({
-      ...prev,
-      goals: prev.goals.map(x => (x.id === gid ? { ...x, steps: updated } : x)),
-    }));
-    if (completed) {
-      setBurst(n => n + 1);
-      setToast('Milestone complete. That was all you!');
-    } else setToast('Progress saved.');
+  async function toggleStep(gid:string,sid:string){
+    const goal=rawGoals.current[gid],shown=data.goals.find(g=>g.id===gid);
+    if(!goal||!shown||sid!==gid)return;
+    const done=shown.steps.every(s=>s.done);setBusy(true);
+    try{
+      const {data:response}=await api.put('/api/goals/'+encodeURIComponent(gid),
+        {status:done?'active':'completed',expectedVersion:goal.version});
+      rawGoals.current[gid]=response.goal;
+      setData(p=>({...p,goals:p.goals.map(g=>g.id!==gid?g:
+        {...g,steps:g.steps.map(s=>({...s,done:!done}))})}));
+      if(!done){setBurst(n=>n+1);setToast('Milestone complete!');}
+      else setToast('Progress saved.');
+    }catch(err){setBackendError(String((err as Error)?.message||'Goal update failed.'));}
+    finally{setBusy(false);}
   }
-  function addGoal() {
-    const title = window.prompt('What is one meaningful goal?');
-    if (!title?.trim()) return;
-    setData(prev => ({
-      ...prev,
-      goals: [
-        ...prev.goals,
-        {
-          id: id(),
-          title: title.trim(),
-          steps: [
-            { id: id(), label: 'Take the first small step', done: false },
-          ],
-        },
-      ],
-    }));
-    setToast('A new goal is ready. One step at a time.');
+  async function addGoal(){
+    const title=window.prompt('What is one meaningful goal?');
+    if(!title?.trim())return;
+    const nextStep=window.prompt('What is your next step?')?.trim()||'Take the first small step';
+    setBusy(true);
+    try{
+      const {data:response}=await api.post('/api/goals',{
+        title:title.trim().slice(0,160),nextStep:nextStep.slice(0,350),status:'active',targetDate:''
+      });
+      const g=response.goal as StoredGoal;
+      rawGoals.current[g.id]=g;
+      setData(p=>({...p,goals:[...p.goals,
+        {id:g.id,title:g.title,steps:[{id:g.id,label:g.nextStep,done:false}]}]}));
+      setToast('Goal saved privately.');
+    }catch(err){setBackendError(String((err as Error)?.message||'Could not save goal.'));}
+    finally{setBusy(false);}
   }
   function exportReview() {
     const text =
-      'MIND BLOGGING — WEEKLY REVIEW (DEMO)\n\n' +
+      'MIND BLOGGING — WEEKLY REVIEW\n\n' +
       thisWeek
         .map(
           e => e.date + ' | ' + e.category + ' | ' + e.title + '\n' + e.notes
@@ -546,24 +503,26 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'mind-blogging-demo-review.txt';
+    a.download = 'mind-blogging-weekly-review.txt';
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
     setToast('Your review was exported.');
   }
-  function reset() {
-    if (
-      !window.confirm(
-        'Reset all demo entries, goals, and settings to the original samples?'
-      )
-    )
-      return;
-    setData(initialData());
-    setToast('Demo reset to its starting state.');
-    navigate('overview');
+  async function reset(){
+    if(!window.confirm('Sign out of your private workspace?'))return;
+    setBusy(true);
+    try{
+      await auth.signOut();setUser(null);
+      rawEntries.current={};rawGoals.current={};rawArtifacts.current=[];
+      setData(p=>({...p,entries:[],goals:[]}));
+      setToast('Signed out.');
+    }catch(err){setBackendError(String((err as Error)?.message||'Sign-out failed.'));}
+    finally{setBusy(false);}
   }
+  if(!authReady)return <div className="playful-loading" role="status">Opening Mind Blogging…</div>;
+  if(!user)return <PlayfulLogin onSuccess={setUser} onAdvanced={()=>onAdvanced('home')}/>;
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
@@ -614,8 +573,8 @@ function App() {
             <strong>A little bit counts.</strong>
             <p>Keep the moments that make your story.</p>
           </div>
-          <button className="side-demo" onClick={() => navigate('welcome')}>
-            <ShieldCheck size={17} /> Demo preview <ArrowUpRight size={15} />
+          <button className="side-demo" onClick={() => onAdvanced('home')}>
+            <Sparkles size={17} /> AI & advanced tools <ArrowUpRight size={15} />
           </button>
         </div>
       </aside>
@@ -627,9 +586,7 @@ function App() {
           </div>
           <span className="date-label">{todayLabel}</span>
           <div className="top-actions">
-            <span className="demo-label">
-              <span /> DEMO MODE
-            </span>
+            <span className="demo-label"><span /> {loading?'SYNCING':'PRIVATE WORKSPACE'}</span>
             <button
               className="icon-btn settings-quick"
               onClick={() => navigate('settings')}
@@ -650,6 +607,10 @@ function App() {
           </div>
         </header>
         <main className="content" id="main">
+          {backendError && <div className="form-error" role="alert">{backendError}
+            <button className="text-link" onClick={()=>onAdvanced('home')}>Advanced workspace</button>
+          </div>}
+          {loading && <p className="muted-note" role="status">Syncing your private records…</p>}
           {page === 'overview' && (
             <div className="page-screen">
               <div className="page-heading">
@@ -657,7 +618,7 @@ function App() {
                   <span className="eyebrow">YOUR PERSONAL GROWTH SPACE</span>
                   <h1>
                     {dateGreeting()},{' '}
-                    <span className="name-highlight">{profile.name.split(' ')[0]}.</span>
+                    <span className="name-highlight">{profile.name.split(' ')[0] || user.name || 'friend'}.</span>
                   </h1>
                   <p>A calmer way to notice how far you've come.</p>
                 </div>
@@ -873,48 +834,7 @@ function App() {
               </div>
             </div>
           )}
-          {page === 'welcome' && (
-            <div className="welcome-page page-screen">
-              <span className="eyebrow">HELLO, WELCOME TO YOUR SPACE</span>
-              <div className="welcome-layout">
-                <div>
-                  <h1>
-                    Tiny notes.
-                    <br />
-                    <em>Visible growth.</em>
-                  </h1>
-                  <p>
-                    Your work, your story. Capture the little moments, celebrate
-                    the progress, and make room to grow.
-                  </p>
-                  <div className="welcome-buttons">
-                    <button
-                      className="primary-button"
-                      onClick={() => navigate('overview')}
-                    >
-                      Explore the demo <ArrowRight size={17} />
-                    </button>
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        setToast(
-                          'Google login is only a design concept in this demo — no account required.'
-                        )
-                      }
-                    >
-                      Continue with Google{' '}
-                      <span className="concept-badge">concept</span>
-                    </button>
-                  </div>
-                  <small className="welcome-disclaimer">
-                    <LockKeyhole size={15} /> This is a separate, local-only
-                    demo; no Google account is connected.
-                  </small>
-                </div>
-                <SparkFriend />
-              </div>
-            </div>
-          )}
+
           {page === 'capture' && (
             <div className="page-screen">
               <div className="page-heading">
@@ -998,7 +918,7 @@ function App() {
                         : 0}{' '}
                       words
                     </span>
-                    <span>Only saved in this browser</span>
+                    <span>Saved on your device</span>
                   </div>
                   <label className="field-label" htmlFor="entry-tags">
                     Add a few tags{' '}
@@ -1381,11 +1301,11 @@ function App() {
                     <Lightbulb size={17} />
                     {showIdeas
                       ? 'Hide the example'
-                      : 'Show demo reflection idea'}
+                      : 'Show reflection example'}
                   </button>
                   {showIdeas && (
                     <div className="demo-ai">
-                      <span>ILLUSTRATIVE EXAMPLE · NO AI CALL</span>
+                      <span>WRITING INSPIRATION · NOT AI GENERATED</span>
                       <p>
                         “The work that felt hardest taught me the most about
                         asking for help early.”
@@ -1411,10 +1331,10 @@ function App() {
                   <span className="profile-portrait-spark">✦</span>
                 </div>
                 <div className="profile-identity">
-                  <span className="eyebrow">MY PERSONAL SPACE · DEMO</span>
+                  <span className="eyebrow">MY PERSONAL SPACE</span>
                   <h2>{profileDraft.name.trim() || 'Your name'}</h2>
                   <p>{profileDraft.headline || 'Your next chapter begins here.'}</p>
-                  <span className="profile-local"><ShieldCheck size={15} /> Only saved in this browser</span>
+                  <span className="profile-local"><ShieldCheck size={15} /> Saved on your device</span>
                 </div>
                 <div className="profile-hero-decoration" aria-hidden="true">✳</div>
               </section>
@@ -1468,7 +1388,7 @@ function App() {
                   </section>
                   <section className="panel profile-notice">
                     <LockKeyhole size={22} aria-hidden="true" />
-                    <div><strong>Demo profile — not a Google account</strong><p>This is a visual preview. Your name, avatar color and journal stay on this device only. There is no real sign-in, online profile or sync here.</p></div>
+                    <div><strong>Private account connected</strong><p>Your journal, evidence and goals are stored with your signed-in account. Only profile appearance is device-local.</p></div>
                     <button type="button" className="text-link" onClick={() => navigate('settings')}>Appearance and settings <ArrowRight size={16} /></button>
                   </section>
                 </aside>
@@ -1557,15 +1477,15 @@ function App() {
                 </div>
               </section>
               <section className="panel">
-                <h2>About this design demo</h2>
+                <h2>Your private account & advanced settings</h2>
                 <p className="settings-description">
-                  <ShieldCheck size={19} /> Your sample journal stays in this
-                  browser's local storage. This preview has no real account, no
-                  cloud synchronization, and no AI service. Do not use it for
-                  sensitive records.
+                  <ShieldCheck size={19} /> Journal, goals and evidence are stored in your private account. Manage AI consent and data export in the advanced workspace.
                 </p>
-                <button className="danger-button" onClick={reset}>
-                  <RotateCcw size={18} /> Reset all sample data
+                <button className="secondary-button" onClick={() => onAdvanced('settings')}>
+                  <Sparkles size={17} /> AI consent, reminders & data export
+                </button>
+                <button className="danger-button" disabled={busy} onClick={() => void reset()}>
+                  <ShieldCheck size={18} /> Sign out securely
                 </button>
               </section>
             </div>
@@ -1573,7 +1493,7 @@ function App() {
         </main>
         <footer className="footer">
           Made for little moments and meaningful growth <span>✳</span>{' '}
-          <button onClick={() => navigate('welcome')}>About this demo</button>
+          <button onClick={() => onAdvanced('home')}>AI & advanced tools</button>
         </footer>
       </div>
       <nav className="bottom-nav" aria-label="Mobile navigation">
@@ -1655,14 +1575,14 @@ function App() {
               },
               {
                 page: 'welcome' as const,
-                label: 'About this demo',
+                label: 'AI & advanced tools',
                 icon: ShieldCheck,
               },
             ].map(t => (
               <button
                 className="drawer-item"
                 key={t.page}
-                onClick={() => navigate(t.page)}
+                onClick={() => t.page==='welcome'?onAdvanced('home'):navigate(t.page)}
               >
                 <t.icon size={21} />
                 <span>{t.label}</span>
