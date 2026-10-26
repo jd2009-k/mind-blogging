@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {api,auth} from './cloud';
 import type {AuthUser} from './cloud';
 import PlayfulLogin from './PlayfulLogin';
-import PlayfulAdvanced from './PlayfulAdvanced';
+const PlayfulAdvanced=lazy(()=>import('./PlayfulAdvanced'));
 import {cleanProfile,emptyProfile,profileFromSettings,profilePatch} from './account-profile';
 import './playful-full.css';
 import {
@@ -1393,7 +1393,9 @@ function App({initialPage='overview'}:Props) {
             </div>
           )}
           {page === 'advanced' && (
-            <PlayfulAdvanced onBack={()=>navigate('overview')} onJournal={()=>navigate('journal')}/>
+            <Suspense fallback={<div role="status">Opening AI & advanced tools…</div>}>
+              <PlayfulAdvanced onBack={()=>navigate('overview')} onJournal={()=>navigate('journal')}/>
+            </Suspense>
           )}
           {page === 'settings' && (
             <div className="page-screen settings-page">
