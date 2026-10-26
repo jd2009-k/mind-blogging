@@ -25,7 +25,7 @@ async function request(method:string,path:string,body:any={}):Promise<{data:any}
   if(method==='POST'){const time=stamp();const r=await write(kind,{...body,id:body.id||guid(),createdAt:time,updatedAt:time,version:1});
    return success({[kind==='entries'?'entry':kind==='artifacts'?'artifact':kind==='goals'?'goal':'review']:r});}
   if(method==='PUT'&&id){const prev=await one(kind,id);if(!prev)fail('Record not found',404);if(body.expectedVersion!==undefined&&body.expectedVersion!==prev.version)fail('Another edit has changed this record.',409);
-   const {expectedVersion,...fields}=body;const r=await write(kind,{...prev,...fields,id,version:(prev.version||0)+1,updatedAt:stamp()});return success({[kind==='entries'?'entry':kind==='artifacts'?'artifact':'goal']:r});}
+   const {expectedVersion,...fields}=body;const r=await write(kind,{...prev,...fields,id,version:(prev.version||0)+1,updatedAt:stamp()});return success({[kind==='entries'?'entry':kind==='artifacts'?'artifact':kind==='reviews'?'review':'goal']:r});}
   if(method==='DELETE'&&id){await remove(kind,id);if(kind==='entries'){for(const a of await read('artifacts'))if(a.sourceEntryId===id)await remove('artifacts',a.id);}return success({deleted:true});}
  }
  if(route==='account'&&parts[2]==='erase'&&method==='POST'){
