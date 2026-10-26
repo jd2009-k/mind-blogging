@@ -22,7 +22,9 @@ try {
       }));
       assert.ok(widths.page<=widths.viewport+2,
         label+': horizontal overflow '+JSON.stringify(widths));
-      await page.getByRole('button',{name:/Open my workspace/i}).first().click();
+      const desktopEntry=page.getByRole('button',{name:/Open my workspace/i}).first();
+      if(await desktopEntry.isVisible()) await desktopEntry.click();
+      else await page.locator('.pl-mobile-bottom button').first().click();
       await page.getByText('Continue with Google',{exact:false}).waitFor({state:'visible',timeout:15000});
       console.log(label+' public UI and login gate passed');
     } finally {await page.close();}
