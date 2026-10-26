@@ -75,8 +75,8 @@ export default function PlayfulLogin({onSuccess,onAdvanced}:{
           {mode==='email'?'Use password':'Email link'}
         </button>
       </div>
-      <button type="button" className="pl-login-advanced" onClick={onAdvanced}>
-        Advanced sign-in and account options
+      <button type="button" className="pl-login-advanced" onClick={()=>setMode('email')}>
+        Use an email link instead
       </button>
       <div className="pl-login-privacy"><ShieldCheck size={17}/> Account-based privacy · No demo records</div>
     </main>
