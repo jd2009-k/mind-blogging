@@ -167,7 +167,7 @@ const defaultPrefs: Preferences = {
   timezone: 'Asia/Kolkata',
   version: 0,
 };
-function App() {
+function App({ initialPage = 'home' }: { initialPage?: Tab }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
@@ -178,7 +178,7 @@ function App() {
   const [deletionPhrase, setDeletionPhrase] = useState('');
   const [authHint, setAuthHint] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState<Tab>('home');
+  const [page, setPage] = useState<Tab>(initialPage);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
