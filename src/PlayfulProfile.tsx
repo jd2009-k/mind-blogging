@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { auth } from './cloud';
 import {
   ArrowRight, BookOpen, CalendarDays, Check, ChevronRight,
@@ -83,6 +83,20 @@ export default function PlayfulProfile({ onEnter }: Props) {
   // No device-wide profile is ever read.
   const [profile, setProfile] = useState<Profile>(loadProfile);
   const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    let active = true;
+    auth.getUser().then(user => {
+      if (!active) return;
+      if (user?.userId) window.sessionStorage.setItem('mind-blogging-profile-owner', user.userId);
+      else window.sessionStorage.removeItem('mind-blogging-profile-owner');
+      setProfile(loadProfile());
+    }).catch(() => {
+      if (!active) return;
+      window.sessionStorage.removeItem('mind-blogging-profile-owner');
+      setProfile({ ...blankProfile });
+    });
+    return () => { active = false; };
+  }, []);
   const [error, setError] = useState('');
   const nav = [
     { label: 'Overview', page: 'home' as const, icon: Home },
