@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {list,del} from '@vercel/blob';
 import {authenticated,send} from './_shared.js';
-import {eraseAccount} from './account-delete-core.mjs';
+import {eraseAccount} from '../lib/account-delete-core.mjs';
 
 const prefix='mindblog-push/';
 const supabaseUrl='https://laodxcqxfbzoeetlfxyd.supabase.co';
