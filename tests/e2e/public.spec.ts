@@ -17,8 +17,8 @@ test('the profile-first homepage renders and gates the private workspace',async(
 test('unsigned users cannot persist private profile information',async({page})=>{
  await page.goto('/');
  await page.getByRole('textbox',{name:/Display name/i}).fill('Temporary unsaved preview');
- await page.getByRole('button',{name:/Sign in to save/i}).click();
- await expect(page.getByRole('heading',{name:/Your little moments/i})).toBeVisible();
+ await page.getByRole('button',{name:/Save my profile/i}).click();
+ await expect(page.getByRole('alert')).toContainText('Sign in and confirm');
  await page.reload();
  await expect(page.getByRole('heading',{name:/Make it yours/i})).toBeVisible();
  await expect(page.getByRole('textbox',{name:/Display name/i})).toHaveValue('');

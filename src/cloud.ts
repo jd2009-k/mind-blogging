@@ -29,8 +29,8 @@ async function request(method:string,path:string,body:any={}):Promise<{data:any}
   if(method==='DELETE'&&id){await remove(kind,id);if(kind==='entries'){for(const a of await read('artifacts'))if(a.sourceEntryId===id)await remove('artifacts',a.id);}return success({deleted:true});}
  }
  if(route==='account'&&parts[2]==='erase'&&method==='POST'){
-   if(body.confirmation!=='DELETE MY DATA')fail('Confirmation required.',422);
-   return success(await authenticatedFetch('/api/delete-account','POST',body));
+  // Privileged account deletion must occur server-side; never expose admin secrets.
+  return success(await authenticatedFetch('/api/account-delete','POST',body));
  }
  if(route==='reminders'&&parts[2]==='test'&&method==='POST'){const r=await authenticatedFetch('/api/push?mode=test','POST',{});return success(r);}
  if((route==='suggest-tags'||route==='action')&&method==='POST'){return success(await authenticatedFetch('/api/'+route,'POST',body));}

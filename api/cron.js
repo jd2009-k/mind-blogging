@@ -1,6 +1,6 @@
 import {list,get,del} from '@vercel/blob';
 import webpush from 'web-push';
-import {validPushSubscription} from './_push-validation.js';
+import {validPushSubscription} from '../lib/push-validation.js';
 export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'GET only'});
  // Fail closed if the deployment secret is missing or empty.

@@ -4,6 +4,15 @@ A private work-and-career journaling app with evidence tracking, reflections, re
 
 **Status: beta.** This repository is a recovered, editable standalone implementation aligned with the running Vercel project. It is **not a byte-for-byte export** of all deployed backend files. The production site is [Mind Blogging](https://mind-blogging-jd-ff4c.vercel.app).
 
+## Architecture reference
+
+- [Editable PowerPoint: Mind Blogging Tech Stack & Architecture](docs/Mind_Blogging_Tech_Stack_Architecture.pptx)
+- [Technical architecture guide and request flows](docs/architecture-reference.md)
+- [PowerPoint generation source](scripts/build_architecture_pptx.py)
+- [Automated PowerPoint publishing workflow](.github/workflows/publish-architecture-pptx.yml)
+
+The deck is regenerated and committed by GitHub Actions when the reference documentation or slide generator changes. The architecture guide distinguishes direct browser-to-Supabase journal CRUD from authenticated Vercel API operations for AI and notifications.
+
 ## Local development
 
 Install Node.js 20+ and run:

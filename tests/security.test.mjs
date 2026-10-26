@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import cron from '../api/cron.js';
-import deletion from '../api/delete-account.js';
-import {trustedPushEndpoint,validPushSubscription} from '../api/_push-validation.js';
+import deletion from '../api/account-delete.js';
+import {trustedPushEndpoint,validPushSubscription} from '../lib/push-validation.js';
 
 const source=readFileSync(new URL('../src/account-profile.ts',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;

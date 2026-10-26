@@ -1,6 +1,6 @@
 import {get,put,del,list} from '@vercel/blob';
 import webpush from 'web-push';
-import {validPushSubscription} from './_push-validation.js';
+import {validPushSubscription} from '../lib/push-validation.js';
 import {authenticated,getRecord,send} from './_shared.js';
 const prefix='mindblog-push/';
 const configure=()=>{if(!process.env.VAPID_PUBLIC_KEY||!process.env.VAPID_PRIVATE_KEY)throw Error('Push keys missing');webpush.setVapidDetails('mailto:noreply@example.com',process.env.VAPID_PUBLIC_KEY,process.env.VAPID_PRIVATE_KEY);};

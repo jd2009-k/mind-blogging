@@ -220,20 +220,24 @@ export default function PlayfulAdvanced({onBack,onJournal}:Props){
     finally{setBusy('');}
   };
   const erase=async()=>{
-    const user=await auth.getUser();
-    if(!user?.email){setError('Sign in with a confirmed email before requesting account deletion.');return;}
-    const typedEmail=window.prompt('Confirm your account email to permanently delete this account:');
-    if(!typedEmail || typedEmail.trim().toLowerCase()!==user.email.toLowerCase()){
-      setError('Account email does not match. No data was deleted.');return;
+    const me=await auth.getUser().catch(()=>null);
+    if(!me?.userId || !me.email){
+      setError('Sign in again before deleting your account.');
+      return;
     }
-    if(window.prompt('Type DELETE MY DATA to delete your account, journal and goals:')!=='DELETE MY DATA')return;
+    const confirmation=window.prompt('This permanently deletes your account, journal, goals, reviews and reminder subscriptions. Export your data first. Type DELETE MY ACCOUNT to continue:');
+    if(confirmation!=='DELETE MY ACCOUNT')return;
+    const email=window.prompt('Confirm by entering your signed-in email address:');
+    if(!email || email.trim().toLowerCase()!==me.email.toLowerCase()){
+      setError('Your account email did not match; no data was deleted.');
+      return;
+    }
     setBusy('erase');setError('');
     try{
-      const result=await api.post('/api/account/erase',{
-        confirmation:'DELETE MY DATA',confirmEmail:typedEmail.trim()
-      });
-      if(!result.data?.complete)throw new Error('Deletion was not confirmed by the server.');
-      await auth.signOut();
+      await api.post('/api/account/erase',{confirmation:'DELETE MY ACCOUNT',email:me.email});
+      // Remove only this identity's device-local display profile.
+      localStorage.removeItem('mind-blogging-personal-profile-v2:'+me.userId);
+      await auth.signOut().catch(()=>{});
       window.location.assign('/');
     }catch(e){setError(sayError(e));setBusy('');}
   };
@@ -365,10 +369,10 @@ export default function PlayfulAdvanced({onBack,onJournal}:Props){
           </button>
         </div>
         <div className="pa-danger-zone">
-          <span><LockKeyhole size={19}/><strong>Erase all Mind Blogging records</strong>
-            <small>This cannot be undone. Your identity provider account is not deleted.</small></span>
+          <span><LockKeyhole size={19}/><strong>Permanently delete my Mind Blogging account</strong>
+            <small>This removes your journal and account. Sign out and sign in again just before deleting; export your data first. Google and other external identity-provider accounts are not deleted.</small></span>
           <button type="button" disabled={saving} onClick={()=>void erase()} className="pa-erase">
-            <Trash2 size={16}/> Erase my data
+            <Trash2 size={16}/> Delete my account
           </button>
         </div>
       </section>
