@@ -1,5 +1,6 @@
 import {list,get,del} from '@vercel/blob';
 import webpush from 'web-push';
+import {validPushSubscription} from '../lib/push-validation.js';
 export default async function handler(req,res){
  if(req.method!=='GET')return res.status(405).json({error:'GET only'});
  // Fail closed if the deployment secret is missing or empty.
@@ -13,7 +14,7 @@ export default async function handler(req,res){
   for(const item of page.blobs){
    try{
     const file=await get(item.url,{access:'private'});if(!file?.stream)continue;
-    const {subscription}=JSON.parse(await new Response(file.stream).text());if(!subscription)continue;
+    const {subscription}=JSON.parse(await new Response(file.stream).text());if(!validPushSubscription(subscription)){failed++;await del(item.url);continue;}
     await webpush.sendNotification(subscription,JSON.stringify({title:'A moment to reflect',body:'Your weekly Mind Blogging check-in is ready.',url:'/'}),{TTL:86400});sent++;
    }catch(err){failed++;if([404,410].includes(err.statusCode))await del(item.url);}
   }

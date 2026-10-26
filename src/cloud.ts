@@ -57,6 +57,19 @@ export const auth={
   if(error)fail(error.message,error.status||400);
   return {sent:true};
  },
+ resetPassword:async(email:string)=>{
+  const {error}=await sb.auth.resetPasswordForEmail(email.trim(),{
+    redirectTo:currentRedirect()+'?passwordRecovery=1'
+  });
+  if(error)fail(error.message,error.status||400);
+  return {sent:true};
+ },
+ updatePassword:async(password:string)=>{
+  if(password.length<12)fail('Use at least 12 characters for a new password.',422);
+  const {error}=await sb.auth.updateUser({password});
+  if(error)fail(error.message,error.status||400);
+  return {updated:true};
+ },
  /** Email+password avoids cross-device magic-link redirects for existing confirmed users. */
  signInWithPassword:async(email:string,password:string)=>{
   const {data,error}=await sb.auth.signInWithPassword({email:email.trim(),password});
