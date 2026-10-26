@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { auth } from './cloud';
 import {
   ArrowRight, BookOpen, CalendarDays, Check, ChevronRight,
   Feather, Heart, Home, LockKeyhole, PenLine, Pencil,
@@ -10,7 +11,8 @@ export type WorkspacePage = 'home' | 'capture' | 'timeline' | 'growth' | 'review
 type Color = 'lilac' | 'coral' | 'mint' | 'amber';
 type Profile = { name: string; headline: string; bio: string; color: Color };
 
-const PROFILE_KEY = 'mind-blogging-personal-profile-v1';
+const PROFILE_KEY = 'mind-blogging-personal-profile-v2';
+// Legacy unowned profiles are intentionally not migrated: ownership cannot be established.
 const blankProfile: Profile = {
   name: '', headline: '', bio: '', color: 'lilac'
 };
@@ -21,9 +23,11 @@ const colors: { color: Color; label: string }[] = [
   { color: 'amber', label: 'Sunshine' }
 ];
 
-function loadProfile(): Profile {
+function loadProfile(userId: string | null): Profile {
+  // Never infer account ownership from browser storage before authentication.
+  if (!userId) return { ...blankProfile };
   try {
-    const value = window.localStorage.getItem(PROFILE_KEY);
+    const value = window.localStorage.getItem(PROFILE_KEY + ':' + userId);
     if (!value) return { ...blankProfile };
     const record: unknown = JSON.parse(value);
     if (!record || typeof record !== 'object') return { ...blankProfile };
@@ -73,9 +77,30 @@ function SparkFriend() {
 type Props = { onEnter: (page: WorkspacePage) => void };
 
 export default function PlayfulProfile({ onEnter }: Props) {
-  const [profile, setProfile] = useState<Profile>(loadProfile);
+  // A profile is blank until the current authenticated identity is established.
+  // No device-wide profile is ever read.
+  // Keep the first paint blank; do not show a cached previous account's profile.
+  const [profile, setProfile] = useState<Profile>({ ...blankProfile });
+  const [profileOwner, setProfileOwner] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const lastOwner = useRef<string | null>(null);
+  const authInitialized = useRef(false);
+  useEffect(() => {
+    // Listen for initial session restoration, sign-in, sign-out and account changes.
+    // Avoid discarding unsaved edits when the same account emits SIGNED_IN again.
+    return auth.onAuthStateChange((event, user) => {
+      if (!['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) return;
+      const userId = user?.userId ?? null;
+      if (authInitialized.current && lastOwner.current === userId) return;
+      authInitialized.current = true;
+      lastOwner.current = userId;
+      setProfileOwner(userId);
+      setProfile(loadProfile(userId));
+      setSaved(false);
+      setError('');
+    });
+  }, []);
   const nav = [
     { label: 'Overview', page: 'home' as const, icon: Home },
     { label: 'Capture', page: 'capture' as const, icon: PenLine },
@@ -84,7 +109,12 @@ export default function PlayfulProfile({ onEnter }: Props) {
     { label: 'Reviews', page: 'reviews' as const, icon: CalendarDays },
     { label: 'Settings', page: 'settings' as const, icon: Settings2 }
   ];
-  const save = () => {
+  const save = async () => {
+    const currentUser = await auth.getUser().catch(() => null);
+    if (!currentUser?.userId || currentUser.userId !== profileOwner) {
+      setError('Sign in and confirm your account before saving a private profile.');
+      return;
+    }
     if (!profile.name.trim()) {
       setError('Please add your display name.');
       return;
@@ -96,7 +126,7 @@ export default function PlayfulProfile({ onEnter }: Props) {
       bio: profile.bio.trim().slice(0, 240)
     };
     try {
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(updated));
+      window.localStorage.setItem(PROFILE_KEY + ':' + currentUser.userId, JSON.stringify(updated));
     } catch {
       setError('Browser storage is unavailable. You can still open your workspace.');
       return;

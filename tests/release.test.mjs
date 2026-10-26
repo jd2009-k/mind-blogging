@@ -4,13 +4,14 @@ import {readFileSync,existsSync} from 'node:fs';
 const root=new URL('../',import.meta.url);
 const read=(f)=>readFileSync(new URL(f,root),'utf8');
 test('application configuration is present',()=>{assert.match(read('package.json'),/"build"/);assert.match(read('vite.config.ts'),/react\(\)/)});
-test('Google-only sign-in is the only visible choice',()=>{
- const a=read('src/MindBlog.tsx');
+test('current login interface presents implemented auth methods',()=>{
+ const a=read('src/PlayfulLogin.tsx');
  assert.match(a,/signInWithGoogle/);
  assert.match(a,/Continue with Google/);
- assert.doesNotMatch(a,/Sign in.*Create account.*Email link/);
- assert.doesNotMatch(a,/loginPassword|loginMode|loginEmail/);
- assert.match(a,/onAuthStateChange/);
+ assert.match(a,/signInWithPassword/);
+ assert.match(a,/signUpWithPassword/);
+ assert.match(a,/Email link/);
+ assert.match(read('src/cloud.ts'),/onAuthStateChange/);
 });
 test('Supabase Google OAuth checks provider configuration and callback',()=>{
  const c=read('src/cloud.ts');
@@ -25,6 +26,12 @@ test('AI respects consent and ownership',()=>{const a=read('api/ai.js');assert.m
 test('suggestion action checks consent and saved text',()=>{const a=read('api/action.js');assert.match(a,/authenticated/);assert.match(a,/aiConsent/);assert.match(a,/body\.includes\(text\)/)});
 test('tags endpoint is authenticated',()=>{const a=read('api/suggest-tags.js');assert.match(a,/authenticated/);assert.match(a,/aiConsent/)});
 test('erase revokes push subscriptions',()=>{const a=read('src/cloud.ts');assert.match(a,/unsubscribe'.*'DELETE'/);assert.match(a,/route==='account'/)});
-test('cron endpoint fails closed when secret is missing',()=>{const code=read('api/cron.js');assert.match(code,/!process\.env\.CRON_SECRET\s*\|\|\s*req\.headers\.authorization/);});
+test('cron endpoint checks secret',()=>{assert.match(read('api/cron.js'),/CRON_SECRET/)});
 test('service worker listens for notifications',()=>{assert.match(read('public/sw.js'),/addEventListener\('push'/)});
 test('no password data in GitHub configuration',()=>{for(const f of ['vite.config.ts','package.json','vercel.json'])assert.doesNotMatch(read(f),/sb_secret_|service_role|BEGIN PRIVATE KEY/)});
+
+test('cron authorization fails closed without CRON_SECRET and restricts methods',()=>{
+ const a=read('api/cron.js');
+ assert.match(a,/if\(req\.method!==['"]GET['"]\)/);
+ assert.match(a,/if\(!secret\|\|req\.headers\.authorization!==/);
+});
