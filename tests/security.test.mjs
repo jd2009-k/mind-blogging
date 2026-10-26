@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import cron from '../api/cron.js';
 import deletion from '../api/delete-account.js';
+import {trustedPushEndpoint,validPushSubscription} from '../api/_push-validation.js';
 
 const source=readFileSync(new URL('../src/account-profile.ts',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -70,3 +71,24 @@ function invoke(handler,req){
   Promise.resolve(handler(req,response)).catch(reject);
  });
 }
+
+test('browser push endpoint whitelist blocks SSRF targets and malicious ports',()=>{
+ for(const endpoint of [
+  'https://127.0.0.1/private','https://169.254.169.254/latest/meta-data',
+  'https://fcm.googleapis.com.evil.example/path',
+  'https://localhost/','http://fcm.googleapis.com/fcm/send/abc',
+  'https://fcm.googleapis.com:8443/message','https://user:pass@fcm.googleapis.com/message',
+  'https://[::1]/local','https://192.168.1.1/private'
+ ])assert.equal(trustedPushEndpoint(endpoint),false,endpoint);
+ for(const endpoint of [
+  'https://fcm.googleapis.com/fcm/send/example',
+  'https://updates.push.services.mozilla.com/wpush/v2/example',
+  'https://web.push.apple.com/Qexample',
+  'https://wps.notify.windows.com/?token=test'
+ ])assert.equal(trustedPushEndpoint(endpoint),true,endpoint);
+});
+test('push subscriptions must have reasonable browser keys',()=>{
+ assert.equal(validPushSubscription({endpoint:'https://localhost/x',keys:{auth:'abcdefgh',p256dh:'abcdefgh'}}),false);
+ assert.equal(validPushSubscription({endpoint:'https://fcm.googleapis.com/a',keys:{auth:'abcdefghijk',p256dh:'abcdefghijklmnop'}}),true);
+ assert.equal(validPushSubscription({endpoint:'https://fcm.googleapis.com/a',keys:{auth:'<script>',p256dh:'abcdefgh'}}),false);
+});
