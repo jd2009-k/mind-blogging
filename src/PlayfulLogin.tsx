@@ -58,7 +58,7 @@ export default function PlayfulLogin({onSuccess,onAdvanced}:{
           onChange={e=>setEmail(e.target.value)} placeholder="you@example.com"/>
         {mode!=='email'&&mode!=='recover'&&<>
           <label htmlFor="pl-password">Password</label>
-          <input id="pl-password" type="password" required minLength={6} value={password}
+          <input id="pl-password" type="password" required minLength={mode==='signup'?12:6} value={password}
             onChange={e=>setPassword(e.target.value)}
             autoComplete={mode==='signup'?'new-password':'current-password'}/>
         </>}
