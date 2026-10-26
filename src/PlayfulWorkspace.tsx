@@ -3,6 +3,7 @@ import {api,auth} from './cloud';
 import type {AuthUser} from './cloud';
 import PlayfulLogin from './PlayfulLogin';
 import PlayfulAdvanced from './PlayfulAdvanced';
+import {cleanProfile,emptyProfile,profileFromSettings,profilePatch} from './account-profile';
 import './playful-full.css';
 import {
   Home,
@@ -110,7 +111,7 @@ const blank = (): Draft => ({
   evidence: false,
 });
 
-const PROFILE_KEY='mind-blogging-personal-profile-v1';
+// Profile data is stored in authenticated settings, never in browser-wide localStorage.
 type StoredEntry={id:string;title:string;body:string;kind:string;date:string;tags:string[];version:number;evidence?:boolean;aiExcluded?:boolean};
 type StoredGoal={id:string;title:string;nextStep:string;status:string;version:number};
 type StoredArtifact={id:string;sourceEntryId?:string};
@@ -118,11 +119,8 @@ const categoryOf=(k:string):Category=>/challenge|blocker/i.test(k)?'Challenge':/
 const kindOf=(c:Category)=>({'Small win':'accomplishment',Challenge:'challenge',Idea:'idea',Feedback:'feedback'} as Record<Category,string>)[c];
 function initialData():Data{
  let prefs:Prefs={dark:false,motion:true,companion:true};
- let profile:Profile={name:'',headline:'',bio:'',color:'lilac'};
+ const profile:Profile=emptyProfile();
  try{const v=JSON.parse(localStorage.getItem(STORE_KEY)||'{}');if(v?.prefs)prefs={dark:!!v.prefs.dark,motion:v.prefs.motion!==false,companion:v.prefs.companion!==false};}catch{}
- try{const v=JSON.parse(localStorage.getItem(PROFILE_KEY)||'{}');
-  profile={name:String(v.name||'').slice(0,60),headline:String(v.headline||'').slice(0,80),bio:String(v.bio||'').slice(0,240),color:AVATAR_COLORS.some(x=>x.color===v.color)?v.color:'lilac'};
- }catch{}
  return{entries:[],goals:[],prefs,profile};
 }
 function load():Data{return initialData();}
@@ -317,7 +315,7 @@ function App({initialPage='overview'}:Props) {
     return()=>{active=false;off();};
   },[]);
   useEffect(()=>{
-    if(!user){setData(p=>({...p,entries:[],goals:[]}));return;}
+    if(!user){setData(p=>({...p,entries:[],goals:[],profile:emptyProfile()}));setProfileDraft(emptyProfile());return;}
     let active=true;setLoading(true);setBackendError('');
     api.get('/api/bootstrap').then(({data:remote})=>{
       if(!active)return;
@@ -328,7 +326,9 @@ function App({initialPage='overview'}:Props) {
       rawEntries.current=Object.fromEntries(entries.map(e=>[e.id,e]));
       rawGoals.current=Object.fromEntries(goals.map(g=>[g.id,g]));
       rawArtifacts.current=artifacts;
-      setData(p=>({...p,
+      const loadedProfile=profileFromSettings(remote.settings,user.userId);
+      setProfileDraft(loadedProfile);
+      setData(p=>({...p,profile:loadedProfile,
         entries:entries.map(e=>({id:e.id,title:e.title,notes:e.body,date:e.date,
           category:categoryOf(e.kind),tags:Array.isArray(e.tags)?e.tags:[],
           evidence:!!e.evidence||linked.has(e.id)})),
@@ -382,24 +382,19 @@ function App({initialPage='overview'}:Props) {
     setMore(false);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
-  function saveProfile() {
-    const name = profileDraft.name.trim();
-    if (!name) {
-      setProfileError('Please enter your display name.');
-      return;
-    }
-    const saved: Profile = {
-      ...profileDraft,
-      name,
-      headline: profileDraft.headline.trim().slice(0, 80),
-      bio: profileDraft.bio.trim().slice(0, 240),
-    };
-    try{localStorage.setItem(PROFILE_KEY,JSON.stringify(saved));}
-    catch{setProfileError('Could not save your device profile.');return;}
-    setData(prev => ({ ...prev, profile: saved }));
-    setProfileDraft(saved);
-    setProfileError('');
-    setToast('Your profile has been saved on this device.');
+  async function saveProfile() {
+    if(!user){setProfileError('Sign in to save your profile.');return;}
+    if(!profileDraft.name.trim()){setProfileError('Please enter your display name.');return;}
+    const saved:Profile=cleanProfile({...profileDraft,name:profileDraft.name.trim(),
+      headline:profileDraft.headline.trim(),bio:profileDraft.bio.trim()});
+    setBusy(true);setProfileError('');
+    try{
+      await api.put('/api/settings',profilePatch(user.userId,saved));
+      setData(prev=>({...prev,profile:saved}));
+      setProfileDraft(saved);
+      setToast('Your profile is saved privately to your account.');
+    }catch(e){setProfileError((e as Error)?.message||'Unable to save private profile.');}
+    finally{setBusy(false);}
   }
   function startCapture(entry?: Entry) {
     setDraft(
@@ -518,8 +513,8 @@ function App({initialPage='overview'}:Props) {
     try{
       await auth.signOut();setUser(null);
       rawEntries.current={};rawGoals.current={};rawArtifacts.current=[];
-      setData(p=>({...p,entries:[],goals:[]}));
-      setToast('Signed out.');
+      setData(p=>({...p,entries:[],goals:[],profile:emptyProfile()}));
+      setProfileDraft(emptyProfile());setToast('Signed out.');
     }catch(err){setBackendError(String((err as Error)?.message||'Sign-out failed.'));}
     finally{setBusy(false);}
   }
