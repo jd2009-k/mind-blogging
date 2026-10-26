@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { auth } from './cloud';
 import {
   ArrowRight, BookOpen, CalendarDays, Check, ChevronRight,
@@ -23,12 +23,10 @@ const colors: { color: Color; label: string }[] = [
   { color: 'amber', label: 'Sunshine' }
 ];
 
-function loadProfile(): Profile {
-  // Public profile editing must never reveal another signed-in user's data.
-  // The legacy device-wide key is deliberately ignored.
+function loadProfile(userId: string | null): Profile {
+  // Never infer account ownership from browser storage before authentication.
+  if (!userId) return { ...blankProfile };
   try {
-    const userId = window.sessionStorage.getItem('mind-blogging-profile-owner');
-    if (!userId) return { ...blankProfile };
     const value = window.localStorage.getItem(PROFILE_KEY + ':' + userId);
     if (!value) return { ...blankProfile };
     const record: unknown = JSON.parse(value);
@@ -81,23 +79,28 @@ type Props = { onEnter: (page: WorkspacePage) => void };
 export default function PlayfulProfile({ onEnter }: Props) {
   // A profile is blank until the current authenticated identity is established.
   // No device-wide profile is ever read.
-  const [profile, setProfile] = useState<Profile>(loadProfile);
+  // Keep the first paint blank; do not show a cached previous account's profile.
+  const [profile, setProfile] = useState<Profile>({ ...blankProfile });
+  const [profileOwner, setProfileOwner] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    let active = true;
-    auth.getUser().then(user => {
-      if (!active) return;
-      if (user?.userId) window.sessionStorage.setItem('mind-blogging-profile-owner', user.userId);
-      else window.sessionStorage.removeItem('mind-blogging-profile-owner');
-      setProfile(loadProfile());
-    }).catch(() => {
-      if (!active) return;
-      window.sessionStorage.removeItem('mind-blogging-profile-owner');
-      setProfile({ ...blankProfile });
-    });
-    return () => { active = false; };
-  }, []);
   const [error, setError] = useState('');
+  const lastOwner = useRef<string | null>(null);
+  const authInitialized = useRef(false);
+  useEffect(() => {
+    // Listen for initial session restoration, sign-in, sign-out and account changes.
+    // Avoid discarding unsaved edits when the same account emits SIGNED_IN again.
+    return auth.onAuthStateChange((event, user) => {
+      if (!['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) return;
+      const userId = user?.userId ?? null;
+      if (authInitialized.current && lastOwner.current === userId) return;
+      authInitialized.current = true;
+      lastOwner.current = userId;
+      setProfileOwner(userId);
+      setProfile(loadProfile(userId));
+      setSaved(false);
+      setError('');
+    });
+  }, []);
   const nav = [
     { label: 'Overview', page: 'home' as const, icon: Home },
     { label: 'Capture', page: 'capture' as const, icon: PenLine },
@@ -108,11 +111,10 @@ export default function PlayfulProfile({ onEnter }: Props) {
   ];
   const save = async () => {
     const currentUser = await auth.getUser().catch(() => null);
-    if (!currentUser?.userId) {
-      setError('Sign in before saving a private profile.');
+    if (!currentUser?.userId || currentUser.userId !== profileOwner) {
+      setError('Sign in and confirm your account before saving a private profile.');
       return;
     }
-    window.sessionStorage.setItem('mind-blogging-profile-owner', currentUser.userId);
     if (!profile.name.trim()) {
       setError('Please add your display name.');
       return;
