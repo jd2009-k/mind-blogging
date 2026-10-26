@@ -1,7 +1,7 @@
-import {useState} from 'react';
+import {lazy,Suspense,useState} from 'react';
 import PlayfulProfile from './PlayfulProfile';
-import PlayfulWorkspace from './PlayfulWorkspace';
-import PasswordRecovery from './PasswordRecovery';
+const PlayfulWorkspace=lazy(()=>import('./PlayfulWorkspace'));
+const PasswordRecovery=lazy(()=>import('./PasswordRecovery'));
 import type {WorkspacePage} from './PlayfulProfile';
 
 const toPage=(page:WorkspacePage):'overview'|'capture'|'journal'|'growth'|'reviews'|'settings' =>
@@ -10,11 +10,15 @@ const toPage=(page:WorkspacePage):'overview'|'capture'|'journal'|'growth'|'revie
 export default function App(){
   const [entry,setEntry]=useState<WorkspacePage|null>(null);
   const [recovery,setRecovery]=useState(()=>new URLSearchParams(window.location.search).has('passwordRecovery'));
-  if(recovery)return <PasswordRecovery onDone={()=>{
-    window.history.replaceState({},'',window.location.pathname);
-    setRecovery(false);
-  }}/>;
+  if(recovery)return <Suspense fallback={<div role="status">Opening recovery…</div>}>
+    <PasswordRecovery onDone={()=>{
+      window.history.replaceState({},'',window.location.pathname);
+      setRecovery(false);
+    }}/>
+  </Suspense>;
   return entry
-    ? <PlayfulWorkspace initialPage={toPage(entry)}/>
+    ? <Suspense fallback={<div role="status">Opening your private workspace…</div>}>
+        <PlayfulWorkspace initialPage={toPage(entry)}/>
+      </Suspense>
     : <PlayfulProfile onEnter={setEntry}/>;
 }
