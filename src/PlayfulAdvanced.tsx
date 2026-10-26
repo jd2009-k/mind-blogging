@@ -220,11 +220,19 @@ export default function PlayfulAdvanced({onBack,onJournal}:Props){
     finally{setBusy('');}
   };
   const erase=async()=>{
-    if(window.prompt('To permanently erase all Mind Blogging records, type DELETE MY DATA:')!=='DELETE MY DATA')return;
+    const user=await auth.getUser();
+    if(!user?.email){setError('Sign in with a confirmed email before requesting account deletion.');return;}
+    const typedEmail=window.prompt('Confirm your account email to permanently delete this account:');
+    if(!typedEmail || typedEmail.trim().toLowerCase()!==user.email.toLowerCase()){
+      setError('Account email does not match. No data was deleted.');return;
+    }
+    if(window.prompt('Type DELETE MY DATA to delete your account, journal and goals:')!=='DELETE MY DATA')return;
     setBusy('erase');setError('');
     try{
-      await api.post('/api/account/erase',{confirmation:'DELETE MY DATA'});
-      localStorage.removeItem('mind-blogging-personal-profile-v1');
+      const result=await api.post('/api/account/erase',{
+        confirmation:'DELETE MY DATA',confirmEmail:typedEmail.trim()
+      });
+      if(!result.data?.complete)throw new Error('Deletion was not confirmed by the server.');
       await auth.signOut();
       window.location.assign('/');
     }catch(e){setError(sayError(e));setBusy('');}
