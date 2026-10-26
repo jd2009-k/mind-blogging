@@ -6,7 +6,9 @@ test('the profile-first homepage renders and gates the private workspace',async(
  await page.goto('/');
  await expect(page.getByRole('heading',{name:/Make it yours/i})).toBeVisible();
  await expect(page.getByRole('textbox',{name:/Display name/i})).toBeVisible();
- await page.getByRole('button',{name:/Open my workspace/i}).click();
+ await page.locator('.pl-mobile-bottom').isVisible()
+  ? await page.locator('.pl-mobile-bottom').getByRole('button',{name:'Home'}).click()
+  : await page.getByRole('button',{name:/Open my workspace/i}).click();
  await expect(page.getByRole('heading',{name:/Your little moments/i})).toBeVisible();
  await expect(page.getByRole('button',{name:/Continue with Google/i})).toBeVisible();
  expect(faults).toEqual([]);
@@ -24,7 +26,9 @@ test('unsigned users cannot persist private profile information',async({page})=>
 
 test('password recovery and registration entry points render without credentials',async({page})=>{
  await page.goto('/');
- await page.getByRole('button',{name:/Enter workspace/i}).click();
+ await page.locator('.pl-mobile-bottom').isVisible()
+  ? await page.locator('.pl-mobile-bottom').getByRole('button',{name:'Home'}).click()
+  : await page.getByRole('button',{name:/Enter workspace/i}).click();
  await page.getByRole('button',{name:/Forgot password/i}).click();
  await expect(page.getByRole('button',{name:/Email recovery link/i})).toBeVisible();
  await page.getByRole('button',{name:/Back to sign in/i}).click();
@@ -36,7 +40,9 @@ test('mobile and desktop public pages do not overflow horizontally',async({page}
  await page.goto('/');
  const widths=await page.evaluate(()=>({actual:document.documentElement.scrollWidth,viewport:window.innerWidth}));
  expect(widths.actual).toBeLessThanOrEqual(widths.viewport+2);
- await page.getByRole('button',{name:/Open my workspace/i}).click();
+ await page.locator('.pl-mobile-bottom').isVisible()
+  ? await page.locator('.pl-mobile-bottom').getByRole('button',{name:'Home'}).click()
+  : await page.getByRole('button',{name:/Open my workspace/i}).click();
  const login=await page.evaluate(()=>({actual:document.documentElement.scrollWidth,viewport:window.innerWidth}));
  expect(login.actual).toBeLessThanOrEqual(login.viewport+2);
 });
