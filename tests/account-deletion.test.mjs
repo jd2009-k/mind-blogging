@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {eraseAccount} from '../api/account-delete-core.mjs';
+import {eraseAccount} from '../lib/account-delete-core.mjs';
 
 const now=Date.parse('2026-10-26T12:00:00Z');
 const user={id:'owner-123',email:'account@example.com',last_sign_in_at:new Date(now-60000).toISOString()};
