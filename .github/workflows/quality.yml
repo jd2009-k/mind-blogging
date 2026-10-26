@@ -20,5 +20,7 @@ jobs:
         run: npm run check
       - name: Regression tests
         run: npm test
+      - name: Audit production dependencies for high severity vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
       - name: Production build
         run: npm run build
