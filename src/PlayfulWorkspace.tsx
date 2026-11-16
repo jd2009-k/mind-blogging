@@ -337,10 +337,15 @@ function App({initialPage='overview'}:Props) {
       }
       setUser(me);setAuthReady(true);
     };
-    auth.getUser().then(applyUser)
-      .catch(e=>{if(active){setBackendError(String(e?.message||'Sign-in unavailable'));setAuthReady(true);}});
-    const off=auth.onAuthStateChange((_event,me)=>applyUser(me));
-    return()=>{active=false;off();};
+    let resolved=false;
+    const timer=window.setTimeout(()=>{
+      if(active&&!resolved){setBackendError('Sign-in is taking longer than expected. Try again or reload the page.');setAuthReady(true);}
+    },8000);
+    const finish=(me:AuthUser|null)=>{if(!active)return;resolved=true;window.clearTimeout(timer);setBackendError('');applyUser(me);};
+    const off=auth.onAuthStateChange((_event,me)=>finish(me));
+    auth.getUser().then(me=>{if(!resolved)finish(me);})
+      .catch(e=>{if(active&&!resolved){window.clearTimeout(timer);setBackendError(String(e?.message||'Sign-in unavailable'));setAuthReady(true);}});
+    return()=>{active=false;window.clearTimeout(timer);off();};
   },[]);
   useEffect(()=>{
     if(!user){setData(p=>({...p,entries:[],goals:[]}));return;}
@@ -556,7 +561,7 @@ function App({initialPage='overview'}:Props) {
     finally{setBusy(false);}
   }
   if(!authReady)return <div className="playful-loading" role="status">Opening Mind Blogging…</div>;
-  if(!user)return <PlayfulLogin onSuccess={setUser} onAdvanced={()=>{setPage('advanced');}}/>;
+  if(!user)return <><PlayfulLogin onSuccess={setUser} onAdvanced={()=>{setPage('advanced');}}/>{backendError&&<div role="alert" style={{position:'fixed',bottom:16,left:16,right:16,zIndex:1000,padding:12,background:'#fff',color:'#392c55',border:'1px solid #b9a7d9',borderRadius:12}}>{backendError} <button type="button" onClick={()=>window.location.reload()}>Retry</button> <button type="button" onClick={()=>setBackendError('')}>Dismiss</button></div>}</>;
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
