@@ -299,6 +299,167 @@ const tabs = [
 ];
 const categoryClass = (c: Category) => c.toLowerCase().replace(' ', '-');
 type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';initialUser?:AuthUser;};
+function GuestWorkspace({
+  onSuccess,
+  backendError,
+}: {
+  onSuccess: (user: AuthUser, page: Page) => void;
+  backendError: string;
+}) {
+  const [previewPage, setPreviewPage] = useState<Page>('overview');
+  const [showSignIn, setShowSignIn] = useState(false);
+
+  const openPage = (next: Page) => {
+    setPreviewPage(next);
+    setShowSignIn(next !== 'overview');
+  };
+  const openSignIn = () => setShowSignIn(true);
+  const pageLabels: Record<Page, string> = {
+    overview: 'Overview',
+    capture: 'Capture a moment',
+    journal: 'My journal',
+    growth: 'Growth goals',
+    reviews: 'Weekly reviews',
+    settings: 'Settings',
+    profile: 'My profile',
+    advanced: 'AI & advanced tools',
+  };
+
+  return (
+    <div className="app-shell guest-workspace" data-theme="light" data-motion="on">
+      <div className="ambience ambience-1" aria-hidden="true" />
+      <div className="ambience ambience-2" aria-hidden="true" />
+      <aside className="sidebar">
+        <button className="brand" type="button" onClick={() => openPage('overview')} aria-label="Mind Blogging home">
+          <BrandMark />
+          <span className="brand-name">mind<span>blogging</span><small>the little wins studio</small></span>
+        </button>
+        <div className="side-label">YOUR SPACE</div>
+        <nav className="side-nav" aria-label="Main navigation">
+          {tabs.map(t => (
+            <button key={t.page} type="button"
+              className={'nav-button' + (previewPage === t.page ? ' active' : '')}
+              aria-current={previewPage === t.page ? 'page' : undefined}
+              onClick={() => openPage(t.page)}>
+              <t.icon size={19} strokeWidth={2} />
+              <span>{t.text}</span>
+              {previewPage === t.page && <span className="nav-dot" />}
+            </button>
+          ))}
+        </nav>
+        <div className="side-bottom">
+          <div className="side-note"><span className="side-note-symbol">✷</span>
+            <strong>A little bit counts.</strong>
+            <p>Keep the moments that make your story.</p>
+          </div>
+          <button className="side-demo" type="button" onClick={openSignIn}>
+            <ShieldCheck size={17} /> Sign in to your workspace <ArrowRight size={15} />
+          </button>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <div className="mobile-brand"><BrandMark /><span>mind blogging</span></div>
+          <span className="date-label">{new Date().toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric',
+          })}</span>
+          <div className="top-actions">
+            <span className="demo-label"><span /> PRIVATE RECORDS LOCKED</span>
+            <button type="button" className="guest-top-signin" onClick={openSignIn}>
+              <LockKeyhole size={16} /> Sign in
+            </button>
+          </div>
+        </header>
+        <main className="content" id="main">
+          {backendError && <p className="form-error" role="alert">{backendError}</p>}
+          {showSignIn ? (
+            <div className="page-screen">
+              <div className="page-heading">
+                <div>
+                  <span className="eyebrow">YOUR PERSONAL GROWTH SPACE</span>
+                  <h1>{pageLabels[previewPage]}</h1>
+                  <p>Sign in securely to access your own private moments, goals and reviews.</p>
+                </div>
+                <button type="button" className="text-link" onClick={() => openPage('overview')}>
+                  Home <ArrowRight size={17} />
+                </button>
+              </div>
+              <div className="guest-login">
+                <PlayfulLogin onSuccess={me => onSuccess(me, previewPage)} onAdvanced={() => {}} />
+              </div>
+            </div>
+          ) : (
+            <div className="page-screen">
+              <div className="page-heading">
+                <div>
+                  <span className="eyebrow">YOUR PERSONAL GROWTH SPACE</span>
+                  <h1>Welcome to <span className="name-highlight">Mind Blogging.</span></h1>
+                  <p>A calmer way to notice how far you've come.</p>
+                </div>
+                <button type="button" className="text-link desktop-link" onClick={() => openPage('journal')}>
+                  View my journal <ArrowRight size={17} />
+                </button>
+              </div>
+              <section className="hero-card">
+                <div className="hero-copy">
+                  <span className="hero-pill"><Sparkles size={15} /> TODAY'S LITTLE REMINDER</span>
+                  <h2>Every little<br /><em>moment matters.</em></h2>
+                  <p>Big growth starts with small notes. Sign in to continue with your private journal and goals.</p>
+                  <button type="button" className="primary-button" onClick={openSignIn}>
+                    <LockKeyhole size={18} /> Open my workspace <ArrowRight size={17} />
+                  </button>
+                </div>
+                <div className="hero-visual">
+                  <div className="orb orb-one" />
+                  <div className="orb orb-two" />
+                  <SparkFriend />
+                  <div className="mini-float"><Star size={14} fill="currentColor" /> Look at you, growing!</div>
+                </div>
+              </section>
+              <div className="section-heading">
+                <div><span className="eyebrow">KEEP THE MOMENTUM</span>
+                  <h2>Your space, your story <span className="heading-spark">✳</span></h2>
+                </div>
+                <span className="muted-note">Your records are available after sign-in.</span>
+              </div>
+              <div className="guest-features">
+                {[
+                  {page:'capture' as const,icon:PenLine,title:'Capture a moment',detail:'Keep notes about your small wins and challenges.'},
+                  {page:'journal' as const,icon:BookOpen,title:'Private journal',detail:'Revisit the progress you have saved securely.'},
+                  {page:'growth' as const,icon:Sprout,title:'Growth goals',detail:'Turn everyday reflections into gentle next steps.'},
+                ].map(feature => (
+                  <button type="button" key={feature.page} className="guest-feature" onClick={() => openPage(feature.page)}>
+                    <feature.icon size={25} />
+                    <strong>{feature.title}</strong>
+                    <span>{feature.detail}</span>
+                    <span className="guest-feature-cta">Sign in to open <ArrowRight size={15} /></span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+        <footer className="footer">Made for little moments and meaningful growth <span>✳</span></footer>
+      </div>
+      <nav className="bottom-nav" aria-label="Mobile navigation">
+        {([
+          {page:'overview' as const,label:'Home',icon:Home},
+          {page:'capture' as const,label:'Capture',icon:PenLine},
+          {page:'journal' as const,label:'Journal',icon:BookOpen},
+          {page:'growth' as const,label:'Growth',icon:Sprout},
+          {page:'profile' as const,label:'Profile',icon:UserRound},
+        ]).map(t => (
+          <button type="button" key={t.page}
+            className={'mobile-nav-btn'+(previewPage===t.page?' active':'')+(t.page==='capture'?' capture-nav':'')}
+            onClick={()=>openPage(t.page)} aria-current={previewPage===t.page?'page':undefined}>
+            <span className="mobile-nav-icon"><t.icon size={21} /></span><small>{t.label}</small>
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 function App({initialPage='overview',initialUser}:Props) {
   const [user,setUser]=useState<AuthUser|null>(initialUser??null);
   const [authReady,setAuthReady]=useState(Boolean(initialUser));
@@ -560,8 +721,7 @@ function App({initialPage='overview',initialUser}:Props) {
     }catch(err){setBackendError(String((err as Error)?.message||'Sign-out failed.'));}
     finally{setBusy(false);}
   }
-  if(!authReady)return <div className="playful-loading" role="status">Opening Mind Blogging…</div>;
-  if(!user)return <><PlayfulLogin onSuccess={setUser} onAdvanced={()=>{setPage('advanced');}}/>{backendError&&<div role="alert" style={{position:'fixed',bottom:16,left:16,right:16,zIndex:1000,padding:12,background:'#fff',color:'#392c55',border:'1px solid #b9a7d9',borderRadius:12}}>{backendError} <button type="button" onClick={()=>window.location.reload()}>Retry</button> <button type="button" onClick={()=>setBackendError('')}>Dismiss</button></div>}</>;
+  if(!user)return <GuestWorkspace backendError={backendError} onSuccess={(me, selectedPage) => { setPage(selectedPage); setUser(me); }} />;
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',

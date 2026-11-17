@@ -2155,3 +2155,25 @@ p {
   .profile-identity h2 { font-size:21px; }
 }
 
+
+/* Signed-out visitors land in the actual workspace shell; authentication is in-place. */
+.guest-workspace .guest-top-signin {
+  display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);
+  border-radius:12px;padding:9px 13px;background:var(--card);color:var(--ink);font-weight:700;
+}
+.guest-workspace .guest-features {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin:20px 0 36px;}
+.guest-workspace .guest-feature {
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:12px;
+  border-radius:21px;border:1px solid var(--border);background:var(--card);
+  padding:24px;color:var(--ink);min-width:0;box-shadow:var(--shadow);
+}
+.guest-workspace .guest-feature:hover{border-color:var(--violet);}
+.guest-workspace .guest-feature strong{font-size:18px;}
+.guest-workspace .guest-feature span:not(.guest-feature-cta){color:var(--muted);}
+.guest-workspace .guest-feature-cta {display:inline-flex;align-items:center;gap:7px;color:var(--violet);font-weight:700;}
+.guest-workspace .guest-login .pl-login-page {min-height:0;padding:0;background:transparent;overflow:visible;}
+.guest-workspace .guest-login .pl-login-brand,
+.guest-workspace .guest-login .pl-login-decoration {display:none;}
+.guest-workspace .guest-login .pl-login-card {margin:0 auto 35px;}
+@media(max-width:800px){.guest-workspace .guest-features{grid-template-columns:1fr;}}
+@media(max-width:600px){.guest-workspace .guest-top-signin{padding:7px 9px;font-size:12px;}.guest-workspace .guest-feature{padding:18px;}}
