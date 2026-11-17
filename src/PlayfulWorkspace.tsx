@@ -298,18 +298,18 @@ const tabs = [
   { page: 'advanced' as const, icon: Sparkles, text: 'AI & advanced tools' },
 ];
 const categoryClass = (c: Category) => c.toLowerCase().replace(' ', '-');
-type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';};
-function App({initialPage='overview'}:Props) {
-  const [user,setUser]=useState<AuthUser|null>(null);
-  const [authReady,setAuthReady]=useState(false);
+type Props={initialPage?:'overview'|'capture'|'journal'|'growth'|'reviews'|'settings'|'profile';initialUser?:AuthUser;};
+function App({initialPage='overview',initialUser}:Props) {
+  const [user,setUser]=useState<AuthUser|null>(initialUser??null);
+  const [authReady,setAuthReady]=useState(Boolean(initialUser));
   const [loading,setLoading]=useState(false);
   const [busy,setBusy]=useState(false);
   const [backendError,setBackendError]=useState('');
   const rawEntries=useRef<Record<string,StoredEntry>>({});
   const rawGoals=useRef<Record<string,StoredGoal>>({});
   const rawArtifacts=useRef<StoredArtifact[]>([]);
-  const currentOwner = useRef<string | null>(null);
-  const [data, setData] = useState<Data>(load);
+  const currentOwner = useRef<string | null>(initialUser?.userId??null);
+  const [data, setData] = useState<Data>(() => ({...load(),profile:initialUser?profileForUser(initialUser.userId):{...EMPTY_PROFILE}}));
   const [profileDraft, setProfileDraft] = useState<Profile>(() => ({ ...data.profile || DEFAULT_PROFILE }));
   const [profileError, setProfileError] = useState('');
   const [page, setPage] = useState<Page>(initialPage);
