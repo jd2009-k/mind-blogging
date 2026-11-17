@@ -721,7 +721,7 @@ function App({initialPage='overview',initialUser}:Props) {
     }catch(err){setBackendError(String((err as Error)?.message||'Sign-out failed.'));}
     finally{setBusy(false);}
   }
-  if(!user)return <GuestWorkspace backendError={backendError} onSuccess={(me, selectedPage) => { setPage(selectedPage); setUser(me); }} />;
+  if(!user)return <PlayfulLogin onSuccess={setUser} onAdvanced={()=>setPage('advanced')}/>;
   const todayLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
